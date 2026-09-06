@@ -47,7 +47,8 @@ func returnOverwriteValue(r *http.Request) (string, error) {
 	return overwrite, nil
 }
 
-func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Request, overwrite string, name string, encrypted string, isIdUpload bool, matchingFiles []database.File) {
+// createNewFileRecord handles the creation of a new file record in the database and saves the uploaded file to disk. It also handles overwriting existing files if specified.
+func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Request, overwrite string, name string, encrypted string, matchingFiles []database.File) {
 
 	storageKey := uuid.New().String()
 	path := filepath.Join(h.dataDir, "files", storageKey)
@@ -75,7 +76,8 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 		Encrypted:    encrypted,
 	}
 	var file *database.File
-	if !isIdUpload && overwrite == "true" && len(matchingFiles) == 1 {
+	// If overwrite is true and there is exactly one matching file, overwrite it.
+	if overwrite == "true" && len(matchingFiles) == 1 {
 		oldFile := matchingFiles[0]
 
 		file, err = h.fileService.OverwriteByID(
@@ -95,10 +97,7 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 				fmt.Println("Failed to remove old file:", removeErr)
 			}
 		}
-	} else if isIdUpload {
-		
-
-	} else {
+	} else { // If overwrite is false, a new file is simply being created
 		file, err = h.fileService.Create(
 			r.Context(),
 			input,
@@ -120,12 +119,17 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *UploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.PathValue("name") != "" {
-		h.handleUploadByName(w, r)
-	} else if r.PathValue("id") != "" {
-		h.handleUploadById(w, r)
-	} else {
-		http.Error(w, "Missing name or id in path", http.StatusBadRequest)
+	switch r.Method {
+	case http.MethodPut:
+		if r.PathValue("name") != "" {
+			h.handleUploadByName(w, r)
+		} else if r.PathValue("id") != "" {
+			h.handleUploadById(w, r)
+		} else {
+			http.Error(w, "Missing name or id in path", http.StatusBadRequest)
+		}
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
@@ -176,35 +180,33 @@ func (h *UploadHandler) handleUploadByName(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	h.createNewFileRecord(w, r, overwrite, name, encrypted, false, matchingFiles)
+	h.createNewFileRecord(w, r, overwrite, name, encrypted, matchingFiles)
 
 }
 
+// This function is exclusively for overwriting, since the user isn't able to set a custom ID
 func (h *UploadHandler) handleUploadById(w http.ResponseWriter, r *http.Request) {
-	// This function is exclusively for overwriting, since the user isn't able to set a custom StorageKey
-
-	// TODO: accept new name parameter, accept new file, accept new encryption status
-
-
 	encrypted, err := returnEncryptionType(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	file_to_overwrite, err := h.fileService.GetByID(r.Context(), r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "Failed to get file by ID", http.StatusInternalServerError)
 		return
 	}
+
 	matching_file := []database.File{*file_to_overwrite}
 
 	unsanitised_name := r.URL.Query().Get("name")
 	var new_name string
 	if unsanitised_name != "" {
 		new_name = files.SanitizeFilename(unsanitised_name)
-	} else { 
+	} else {
 		new_name = file_to_overwrite.OriginalName
 	}
 
-	h.createNewFileRecord(w, r, "true", new_name, encrypted, false, matching_file)
+	h.createNewFileRecord(w, r, "true", new_name, encrypted, matching_file)
 }

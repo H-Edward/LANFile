@@ -41,6 +41,15 @@ func (s *Service) GetByName(ctx context.Context, originalName string) ([]databas
 	return files, nil
 }
 
+// Search in-line for files with names that contain the search term i.e "test" would return "test.txt", "my_test_file.pdf", etc.
+func (s *Service) SearchByName(ctx context.Context, originalName string) ([]database.File, error) {
+	var files []database.File
+	if err := s.db.WithContext(ctx).Where("original_name LIKE ?", "%"+originalName+"%").Find(&files).Error; err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
 func (s *Service) Create(ctx context.Context, input CreateFileInput) (*database.File, error) {
 	file := &database.File{
 		ID:           uuid.New().String(),

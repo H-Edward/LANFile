@@ -19,7 +19,22 @@ func NewDownloadHandler(fileService *files.Service, dataDir string) *DownloadHan
 	}
 }
 
-func (h *DownloadHandler) GetbyName(w http.ResponseWriter, r *http.Request) {
+func (h *DownloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		if r.PathValue("name") != "" {
+			h.GetByName(w, r)
+		} else if r.PathValue("id") != "" {
+			h.GetByID(w, r)
+		} else {
+			http.Error(w, "Missing name or id in path", http.StatusBadRequest)
+		}
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *DownloadHandler) GetByName(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
 	files, err := h.fileService.GetByName(r.Context(), name)
@@ -32,6 +47,7 @@ func (h *DownloadHandler) GetbyName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(files) > 1 {
+		//
 		http.Error(w, "Multiple files found with the same name, use the file ID", http.StatusConflict)
 		return
 	}
@@ -41,7 +57,7 @@ func (h *DownloadHandler) GetbyName(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
-func (h *DownloadHandler) GetbyID(w http.ResponseWriter, r *http.Request) {
+func (h *DownloadHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	file, err := h.fileService.GetByID(r.Context(), id)
@@ -53,4 +69,3 @@ func (h *DownloadHandler) GetbyID(w http.ResponseWriter, r *http.Request) {
 
 	http.ServeFile(w, r, path)
 }
-
