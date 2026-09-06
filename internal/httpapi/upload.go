@@ -61,16 +61,32 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 	}
 	defer dst.Close()
 
-	size, err := io.Copy(dst, r.Body)
+	buf := make([]byte, 512)
+	n, err := io.ReadFull(r.Body, buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		_ = os.Remove(path)
+		http.Error(w, "Upload failed", http.StatusInternalServerError)
+		return
+	}
+	mimeType := http.DetectContentType(buf[:n])
+	if _, err := dst.Write(buf[:n]); err != nil {
+		_ = os.Remove(path)
+		http.Error(w, "Upload failed", http.StatusInternalServerError)
+		return
+	}
+
+	written, err := io.Copy(dst, r.Body)
 	if err != nil {
 		_ = os.Remove(path)
 		http.Error(w, "Upload failed", http.StatusInternalServerError)
 		return
 	}
 
+	size := int64(n) + written
+
 	input := files.CreateFileInput{
 		OriginalName: name,
-		ContentType:  r.Header.Get("Content-Type"),
+		ContentType:  mimeType,
 		Size:         size,
 		StorageKey:   storageKey,
 		Encrypted:    encrypted,
