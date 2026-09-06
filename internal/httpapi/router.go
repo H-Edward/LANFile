@@ -16,7 +16,7 @@ func NewRouter(fileService *files.Service, dataDir string) http.Handler {
 	download := NewDownloadHandler(fileService, dataDir)
 
 	r.Method(http.MethodPut, "/u/name/{name}", upload)
-	r.Method(http.MethodPut, "/u/key/{key}", upload)
+	r.Method(http.MethodPut, "/u/id/{id}", upload) // Purely for overwritting, since the ID is something the user can't set
 
 	r.Get("/d/name/{name}", download.GetbyName)
 	r.Head("/d/name/{name}", download.GetbyName)
@@ -26,7 +26,7 @@ func NewRouter(fileService *files.Service, dataDir string) http.Handler {
 
 
 	r.Delete("/delete/name/{name}", deleteFileHandler)
-	r.Delete("/delete/key/{key}", deleteFileHandler)
+	r.Delete("/delete/id/{id}", deleteFileHandler)
 
 
 	return r

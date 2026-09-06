@@ -47,7 +47,7 @@ func returnOverwriteValue(r *http.Request) (string, error) {
 	return overwrite, nil
 }
 
-func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Request, overwrite string, name string, encrypted string, isStorageKeyUpload bool, matchingFiles []database.File) {
+func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Request, overwrite string, name string, encrypted string, isIdUpload bool, matchingFiles []database.File) {
 
 	storageKey := uuid.New().String()
 	path := filepath.Join(h.dataDir, "files", storageKey)
@@ -75,7 +75,7 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 		Encrypted:    encrypted,
 	}
 	var file *database.File
-	if !isStorageKeyUpload && overwrite == "true" && len(matchingFiles) == 1 {
+	if !isIdUpload && overwrite == "true" && len(matchingFiles) == 1 {
 		oldFile := matchingFiles[0]
 
 		file, err = h.fileService.OverwriteByID(
@@ -95,6 +95,9 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 				fmt.Println("Failed to remove old file:", removeErr)
 			}
 		}
+	} else if isIdUpload {
+		
+
 	} else {
 		file, err = h.fileService.Create(
 			r.Context(),
@@ -120,7 +123,7 @@ func (h *UploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.PathValue("name") != "" {
 		h.handleUploadByName(w, r)
 	} else if r.PathValue("id") != "" {
-		h.handleUploadByStorageKey(w, r)
+		h.handleUploadById(w, r)
 	} else {
 		http.Error(w, "Missing name or id in path", http.StatusBadRequest)
 	}
@@ -177,10 +180,31 @@ func (h *UploadHandler) handleUploadByName(w http.ResponseWriter, r *http.Reques
 
 }
 
-func (h *UploadHandler) handleUploadByStorageKey(w http.ResponseWriter, r *http.Request) {
+func (h *UploadHandler) handleUploadById(w http.ResponseWriter, r *http.Request) {
 	// This function is exclusively for overwriting, since the user isn't able to set a custom StorageKey
-	
-	// TODO: accept new name parameter, accept new file, accept new encryption status 
 
-	
+	// TODO: accept new name parameter, accept new file, accept new encryption status
+
+
+	encrypted, err := returnEncryptionType(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	file_to_overwrite, err := h.fileService.GetByID(r.Context(), r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "Failed to get file by ID", http.StatusInternalServerError)
+		return
+	}
+	matching_file := []database.File{*file_to_overwrite}
+
+	unsanitised_name := r.URL.Query().Get("name")
+	var new_name string
+	if unsanitised_name != "" {
+		new_name = files.SanitizeFilename(unsanitised_name)
+	} else { 
+		new_name = file_to_overwrite.OriginalName
+	}
+
+	h.createNewFileRecord(w, r, "true", new_name, encrypted, false, matching_file)
 }
