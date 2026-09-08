@@ -8,6 +8,8 @@ import (
 	"github.com/H-Edward/LANFile/internal/database"
 	"github.com/H-Edward/LANFile/internal/files"
 	"github.com/H-Edward/LANFile/internal/httpapi"
+	"github.com/H-Edward/LANFile/internal/web"
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -20,7 +22,7 @@ func getenv(key, fallback string) string {
 func main() {
 	godotenv.Load()
 	dataDir := getenv("LANFILE_DATA", "./data")
-	addr := getenv("LANFILE_ADDR", ":8021")
+	addr := getenv("LANFILE_ADDR", ":8022")
 
 	db, err := database.Open(getenv("LANFILE_DB", "./data.db"))
 	if err != nil {
@@ -29,11 +31,16 @@ func main() {
 	if err := database.Ping(db); err != nil {
 		log.Fatalf("failed to ping database: %v", err)
 	}
+	r := chi.NewRouter()
 
 	fileService := files.NewService(db)
-	router := httpapi.NewRouter(fileService, dataDir)
+	APIRouter := httpapi.NewAPIRouter(fileService, dataDir)
+	r.Mount("/", APIRouter)
+
+	webRouter := web.NewWebRouter(fileService)
+	r.Mount("/ui", webRouter)
 
 	log.Printf("Starting server on %s...", addr)
 
-	http.ListenAndServe(addr, router)
+	http.ListenAndServe(addr, r)
 }

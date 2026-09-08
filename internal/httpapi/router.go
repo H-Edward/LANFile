@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewRouter(fileService *files.Service, dataDir string) http.Handler {
+func NewAPIRouter(fileService *files.Service, dataDir string) http.Handler {
 	r := chi.NewRouter()
 	log.Println("Setting up routes...")
 
@@ -27,6 +27,7 @@ func NewRouter(fileService *files.Service, dataDir string) http.Handler {
 
 	r.Method(http.MethodGet, "/s/name/{name}", search)
 	r.Method(http.MethodGet, "/s/id/{id}", search)
+	r.Method(http.MethodGet, "/s/getall", search)
 
 	r.Delete("/delete/name/{name}", deleteFileHandler)
 	r.Delete("/delete/id/{id}", deleteFileHandler)

@@ -25,6 +25,14 @@ type CreateFileInput struct {
 	Encrypted    string
 }
 
+func (s *Service) GetAll(ctx context.Context) ([]database.File, error) {
+	var files []database.File
+	if err := s.db.WithContext(ctx).Find(&files).Error; err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
 func (s *Service) GetByID(ctx context.Context, id string) (*database.File, error) {
 	var file database.File
 	if err := s.db.WithContext(ctx).First(&file, "id = ?", id).Error; err != nil {

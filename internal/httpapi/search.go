@@ -23,10 +23,14 @@ func NewSearchHandler(fileService *files.Service, dataDir string) *SearchHandler
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		if r.PathValue("name") != "" {
+		if r.URL.Path == "/s/getall" {
+			h.GetAllFiles(w, r)
+		} else if r.PathValue("name") != "" {
 			h.SearchByName(w, r)
 		} else if r.PathValue("id") != "" {
 			h.SearchByID(w, r)
+		} else {
+			http.Error(w, "Missing name or id in path", http.StatusBadRequest)
 		}
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -86,4 +90,15 @@ func (h *SearchHandler) SearchByID(w http.ResponseWriter, r *http.Request) {
 	// Return the list of files as JSON
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(file)
+}
+
+func (h *SearchHandler) GetAllFiles(w http.ResponseWriter, r *http.Request) {
+	files, err := h.fileService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Error retrieving files", http.StatusInternalServerError)
+		return
+	}
+	// Return the list of files as JSON
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(files)
 }

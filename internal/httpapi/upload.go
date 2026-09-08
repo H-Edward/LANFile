@@ -27,11 +27,11 @@ func NewUploadHandler(fileService *files.Service, dataDir string) *UploadHandler
 
 func returnEncryptionType(r *http.Request) (string, error) {
 	encrypted := r.URL.Query().Get("encrypted")
-	if encrypted != "gpg" && encrypted != "pass" && encrypted != "" {
+	if encrypted != "key" && encrypted != "password" && encrypted != "" {
 		return "", fmt.Errorf("Invalid encryption method")
 	}
 	if encrypted == "" {
-		return "false", nil
+		return "none", nil
 	}
 	return encrypted, nil
 }

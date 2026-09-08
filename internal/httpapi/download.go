@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"mime"
 	"net/http"
 	"path/filepath"
 
@@ -54,6 +55,7 @@ func (h *DownloadHandler) GetByName(w http.ResponseWriter, r *http.Request) {
 	file := files[0]
 	path := filepath.Join(h.dataDir, "files", file.StorageKey)
 
+	setDownloadFilename(w, file.OriginalName)
 	http.ServeFile(w, r, path)
 }
 
@@ -67,5 +69,12 @@ func (h *DownloadHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 	path := filepath.Join(h.dataDir, "files", file.StorageKey)
 
+	setDownloadFilename(w, file.OriginalName)
 	http.ServeFile(w, r, path)
+}
+
+func setDownloadFilename(w http.ResponseWriter, name string) {
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
+		"filename": name,
+	}))
 }
