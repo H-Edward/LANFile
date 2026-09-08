@@ -1,0 +1,9 @@
+services:
+  lanfile:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "${LANFILE_PORT}:${LANFILE_PORT}"
+    volumes:
+      - ./data:/app/data

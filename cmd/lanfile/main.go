@@ -21,11 +21,14 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 func main() {
-	godotenv.Load()
-	dataDir := getenv("LANFILE_DATA", "./data")
-	addr := getenv("LANFILE_ADDR", ":8022")
-
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Error loading .env file: %v", err)
+		
+	}
 	
+	dataDir := getenv("LANFILE_DATA", "./data")
+	addr := getenv("LANFILE_PORT", "8022")
+
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Fatalf("failed to create data directory: %v", err)
 	}
@@ -51,6 +54,6 @@ func main() {
 	r.Mount("/ui", webRouter)
 
 	log.Printf("Starting server on %s...", addr)
-
+	addr = ":" + addr
 	http.ListenAndServe(addr, r)
 }
