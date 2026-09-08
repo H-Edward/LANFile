@@ -8,7 +8,8 @@ Currently, there is no plan for users, however authorisation to overwrite files 
 
 ## WebUI 
 
-![WebUI](https://raw.githubusercontent.com/H-Edward/LANFile/main/media/home.png)
+![Home](https://github.com/H-Edward/LANFile/blob/master/media/home.png?raw=true)
+
 
 Features:
 - [x] Upload files via CLI
