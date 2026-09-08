@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 
 	"github.com/H-Edward/LANFile/internal/database"
 	"github.com/H-Edward/LANFile/internal/files"
@@ -23,6 +24,15 @@ func main() {
 	godotenv.Load()
 	dataDir := getenv("LANFILE_DATA", "./data")
 	addr := getenv("LANFILE_ADDR", ":8022")
+
+	
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		log.Fatalf("failed to create data directory: %v", err)
+	}
+	filesDir := path.Join(dataDir, "files")
+	if err := os.MkdirAll(filesDir, 0755); err != nil {
+		log.Fatalf("failed to create files directory: %v", err)
+	}
 
 	db, err := database.Open(getenv("LANFILE_DB", "./data.db"))
 	if err != nil {

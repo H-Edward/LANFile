@@ -61,10 +61,10 @@ curl -O http://server/d/name/example.txt
 
 Upload a file by name or ID.
 
-| Method | Endpoint             |
-| ------ | -------------------- |
-| `PUT`  | `/u/name/{filename}` |
-| `PUT`  | `/u/id/{fileID}`     |
+| Method | Endpoint             | Description                           |
+| ------ | -------------------- | ------------------------------------- | 
+| `PUT`  | `/u/name/{filename}` | Upload a file with a specific filename|
+| `PUT`  | `/u/id/{fileID}`     | Update an existing file by ID         |
 
 Example:
 
@@ -77,7 +77,7 @@ curl -T example.txt "http://server/u/name/example.txt"
 | Parameter    | Values                    | Default | Description                                                  |
 | ------------ | ------------------------- | ------- | ------------------------------------------------------------ |
 | `encryption` | `key`, `password`, `none` | `none`  | Indicates the file's encryption method (informational only). |
-| `overwrite`  | `true`, `false`           | `false` | Overwrite an existing file with the same name or ID.         |
+| `overwrite`  | `true`, `false`           | `false` | Overwrite an existing file with the same name for `/u/name/{filename}`. |
 
 ---
 
@@ -107,6 +107,6 @@ curl "http://server/s/name/report?exact=true"
 
 ## Security
 
-LANFile is intended for **trusted local networks**. It is **not** designed as a public-facing file-sharing service.
+LANFile is intended for **trusted local networks**. It is **not** designed as a public-facing file-sharing service. By default, anyone with access to the webserver can upload, overwrite, and download files without authentication.
 
 Planned security improvements include authenticated file overwrites using passwords or cryptographic keys.
