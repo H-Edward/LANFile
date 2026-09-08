@@ -8,9 +8,10 @@ Currently, there is no plan for users, however authorisation to overwrite files 
 
 Features:
 - [x] Upload files via CLI
-- [ ] Upload files via Web UI
-- [ ] Download files via CLI
-- [ ] Download files via Web UI
-- [ ] Encryption and decryption of files via password via Web UI
-- [ ] Easy to use via GPG, encryption and decryption of files via GPG via CLI
+- [x] Upload files via Web UI
+- [x] Download files via CLI
+- [x] Download files via Web UI
+- [x] Encryption and decryption of files via password via Web UI
+- [x] Easy to use via GPG, encryption and decryption of files via GPG via CLI
 - [ ] Authorisation to overwrite files via key and password
+- [ ] A pastebin style feature to share snippets accessible via CLI and WEB UI
