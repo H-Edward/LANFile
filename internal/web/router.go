@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+//go:embed templates/*.html templates/partials/*.html
 var templateFS embed.FS
 
 type Handler struct {

@@ -2,6 +2,7 @@ package files
 
 import (
 	"context"
+	"fmt"
 	"uuid"
 
 	"github.com/H-Edward/LANFile/internal/database"
@@ -93,13 +94,14 @@ func (s *Service) OverwriteByID(ctx context.Context, id string, input CreateFile
 	return file, nil
 }
 
-// func (s *Service) DeleteByID(ctx context.Context, id string) error {
-// 	result := s.db.WithContext(ctx).Delete(&database.File{}, "id = ?", id)
-// 	if result.Error != nil {
-// 		return result.Error
-// 	}
-// 	if result.RowsAffected == 0 {
-// 		return fmt.Errorf("file not found")
-// 	}
-// 	return nil
-// }
+func (s *Service) DeleteByID(ctx context.Context, id string) error {
+	result := s.db.WithContext(ctx).Delete(&database.File{}, "id = ?", id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("file not found")
+	}
+	return nil
+}
+

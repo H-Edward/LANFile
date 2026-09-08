@@ -1,0 +1,111 @@
+{{ define "upload-page" }}
+{{ template "base" . }}
+{{ end }}
+
+{{ define "upload-content" }}
+<main>
+	<p style="color:var(--warm);font:700 .78rem system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase">Add to the shelf</p>
+	<h1>Send a file.</h1>
+	<p class="intro">Choose a file and give it a name for the people on your network.</p>
+	<div class="upload-box">
+		<form id="upload-form" data-target-id="{{ .TargetID }}">
+			<label class="drop-label" id="drop-zone" for="file-input"><strong id="file-label">Drop a file here</strong><span>or click to browse your device</span></label>
+			<input id="file-input" type="file" required>
+			<label class="field-label" for="display-name">Custom name</label>
+			<input class="text-input" id="display-name" type="text" value="{{ .TargetName }}" placeholder="Optional: name this file">
+			{{ if .TargetID }}<p class="target-note">Replacing the selected file.</p>{{ end }}
+			<label class="field-label" for="encryption">Encryption</label>
+			<select class="select-input" id="encryption" required>
+				<option value="none">None</option>
+				<option value="password-existing">Already password encrypted</option>
+				<option value="key-existing">Already key encrypted</option>
+				<option value="encrypt-password">Encrypt using password</option>
+				<option value="encrypt-key">Encrypt using key</option>
+			</select>
+			<p class="target-note" id="existing-note" hidden>This file is already encrypted. LANFile will upload it unchanged.</p>
+			<div id="key-fields" hidden>
+				<label class="field-label" for="public-key">Recipient public key</label>
+				<textarea class="text-input" id="public-key" rows="5" placeholder="Paste an ASCII-armored OpenPGP public key"></textarea>
+			</div>
+			<div id="password-fields" hidden>
+				<label class="field-label" for="encryption-password">Encryption password</label>
+				<input class="text-input" id="encryption-password" type="password" autocomplete="new-password">
+			</div>
+			<div class="upload-actions"><button class="button" type="submit">Upload file <span aria-hidden="true">&#8594;</span></button><span id="status" role="status"></span></div>
+			<p class="notice" id="error" hidden></p>
+		</form>
+	</div>
+</main>
+<script>
+	const form = document.getElementById('upload-form');
+	const input = document.getElementById('file-input');
+	const dropZone = document.getElementById('drop-zone');
+	const label = document.getElementById('file-label');
+	const displayName = document.getElementById('display-name');
+	const encryption = document.getElementById('encryption');
+	const keyFields = document.getElementById('key-fields');
+	const passwordFields = document.getElementById('password-fields');
+	const existingNote = document.getElementById('existing-note');
+	const publicKey = document.getElementById('public-key');
+	const encryptionPassword = document.getElementById('encryption-password');
+	const status = document.getElementById('status');
+	const error = document.getElementById('error');
+	const targetID = form.dataset.targetId;
+	function updateEncryptionFields() {
+		keyFields.hidden = encryption.value !== 'encrypt-key';
+		passwordFields.hidden = encryption.value !== 'encrypt-password';
+		existingNote.hidden = encryption.value !== 'password-existing' && encryption.value !== 'key-existing';
+	}
+	encryption.addEventListener('change', updateEncryptionFields);
+	updateEncryptionFields();
+	function showSelectedFile(file) {
+		label.textContent = file?.name || 'Drop a file here';
+	}
+	input.addEventListener('change', () => showSelectedFile(input.files[0]));
+	['dragenter', 'dragover'].forEach((eventName) => {
+		dropZone.addEventListener(eventName, (event) => {
+			event.preventDefault();
+			dropZone.classList.add('dragging');
+		});
+	});
+	['dragleave', 'drop'].forEach((eventName) => {
+		dropZone.addEventListener(eventName, (event) => {
+			event.preventDefault();
+			dropZone.classList.remove('dragging');
+		});
+	});
+	dropZone.addEventListener('drop', (event) => {
+		const file = event.dataTransfer.files[0];
+		if (!file) return;
+		input.files = event.dataTransfer.files;
+		showSelectedFile(file);
+	});
+	form.addEventListener('submit', async (event) => {
+		event.preventDefault(); error.hidden = true;
+		const file = input.files[0]; if (!file) return;
+		status.textContent = 'Uploading...';
+		try {
+			const params = new URLSearchParams();
+			if (displayName.value.trim()) params.set('name', displayName.value.trim());
+			let body = file;
+			if (encryption.value === 'encrypt-key' || encryption.value === 'encrypt-password') {
+				const keyMode = encryption.value === 'encrypt-key';
+				if (keyMode && !publicKey.value.trim()) throw new Error('A recipient public key is required.');
+				if (!keyMode && !encryptionPassword.value) throw new Error('An encryption password is required.');
+				status.textContent = 'Encrypting in browser...';
+				const encryptionKeys = keyMode ? await openpgp.readKey({ armoredKey: publicKey.value.trim() }) : undefined;
+				const message = await openpgp.createMessage({ binary: new Uint8Array(await file.arrayBuffer()) });
+				body = await openpgp.encrypt({ message, encryptionKeys, passwords: keyMode ? undefined : [encryptionPassword.value], format: 'binary' });
+				params.set('encrypted', keyMode ? 'key' : 'password');
+			} else if (encryption.value === 'password-existing' || encryption.value === 'key-existing') {
+				params.set('encrypted', encryption.value === 'key-existing' ? 'key' : 'password');
+			}
+			const query = params.toString();
+			const endpoint = targetID ? '/u/id/' + encodeURIComponent(targetID) : '/u/name/' + encodeURIComponent(file.name);
+			const response = await fetch(endpoint + (query ? '?' + query : ''), { method: 'PUT', body });
+			if (!response.ok) throw new Error(await response.text());
+			window.location.href = '/ui/';
+		} catch (uploadError) { status.textContent = ''; error.textContent = uploadError.message || 'Upload failed.'; error.hidden = false; }
+	});
+</script>
+{{ end }}

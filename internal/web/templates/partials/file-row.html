@@ -1,0 +1,8 @@
+{{ define "file-row" }}
+<div class="file-row" data-file-row="{{ .ID }}">
+	<label class="file-select"><input class="file-checkbox" type="checkbox" value="{{ .ID }}" data-name="{{ .Name }}"><span class="sr-only">Select {{ .Name }}</span></label>
+	<span class="file-name" title="{{ .Name }}">{{ .Name }}</span>
+	<span class="file-size">{{ formatSize .Size }}{{ if or (eq .Encrypted "key") (eq .Encrypted "gpg") (eq .Encrypted "both") }} <span class="protection-icon" title="Key encrypted" aria-label="Key encrypted">&#128273;</span>{{ end }}{{ if or (eq .Encrypted "password") (eq .Encrypted "pass") (eq .Encrypted "both") }} <span class="protection-icon" title="Password protected" aria-label="Password protected">&#128274;</span>{{ end }}</span>
+	<span class="file-actions">{{ if and (ne .Encrypted "none") (ne .Encrypted "false") }}<button class="file-link decrypt-button" type="button" data-id="{{ .ID }}" data-name="{{ .Name }}" data-encrypted="{{ .Encrypted }}">Decrypt and download</button>{{ end }}<a class="file-link" href="/d/id/{{ .ID }}" download>Download</a><a class="file-link" href="/ui/upload?id={{ .ID }}&amp;name={{ .Name | urlquery }}">Replace</a><button class="file-link delete-button" type="button" data-id="{{ .ID }}" data-name="{{ .Name }}">Delete</button></span>
+</div>
+{{ end }}

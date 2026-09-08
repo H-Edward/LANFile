@@ -1,0 +1,63 @@
+{{ define "base" }}
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{ .Title }}</title>
+	<script src="https://cdn.jsdelivr.net/npm/openpgp@6.3.1/dist/openpgp.min.js"></script>
+	<script>try { if (localStorage.getItem('lanfile-theme') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (_) {}</script>
+	<style>
+		:root { color-scheme: light; --ink: #18221f; --muted: #68736e; --line: #dce4df; --paper: #f6f8f4; --card: #fff; --accent: #1e765a; --accent-dark: #14533f; --warm: #e9a64c; --glow: #e4f0e7; --drop-active: #eef6f0; --soft-border: #9eb7a8; --soft-hover: #e9f2eb; }
+		:root[data-theme="dark"] { color-scheme: dark; --ink: #edf0f1; --muted: #aeb5b8; --line: #3b4245; --paper: #17191a; --card: #232729; --accent: #b7c0c4; --accent-dark: #909a9f; --warm: #d5ad70; --glow: #343a3d; --drop-active: #303538; --soft-border: #626b70; --soft-hover: #343a3d; }
+		* { box-sizing: border-box; }
+		body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 Georgia, serif; transition: background .2s ease, color .2s ease; }
+		a { color: inherit; }
+		.shell { width: min(1080px, calc(100% - 36px)); margin: 0 auto; }
+		header { display: flex; align-items: center; justify-content: space-between; padding: 28px 0; border-bottom: 1px solid var(--line); }
+		.brand { font: 700 1.25rem/1.1 Georgia, serif; text-decoration: none; letter-spacing: .02em; }
+		nav { display: flex; gap: 22px; color: var(--muted); font: 600 .85rem/1.2 system-ui, sans-serif; }
+		nav a { text-decoration: none; } nav a:hover { color: var(--accent); }
+		main { padding: 66px 0 90px; }
+		h1 { max-width: 650px; margin: 0; font-size: clamp(2.4rem, 7vw, 5rem); line-height: .98; letter-spacing: -.04em; font-weight: 500; }
+		.intro { max-width: 580px; margin: 20px 0 38px; color: var(--muted); font: 1.05rem/1.6 system-ui, sans-serif; }
+		.button { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 3px; padding: 12px 18px; background: var(--accent); color: white; cursor: pointer; font: 700 .9rem system-ui, sans-serif; text-decoration: none; }
+		.button:hover { background: var(--accent-dark); } .button.secondary { background: var(--ink); color: var(--paper); } .bulk-actions button[hidden] { display: none; } .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; margin-left: 2px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--ink); cursor: pointer; font-size: 1rem; } .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+		.section-head { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin: 72px 0 14px; } .section-head > div:first-child { display: grid; gap: 3px; } .bulk-actions { display: flex; align-items: center; gap: 14px; } .select-all { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font: .8rem system-ui, sans-serif; white-space: nowrap; } .bulk-delete, .bulk-download { padding: 8px 12px; font-size: .78rem; } .bulk-delete:disabled, .bulk-download:disabled { cursor: not-allowed; opacity: .45; } .button.danger { background: #a34c28; } .button.danger:hover { background: #7d3018; }
+		h2 { margin: 0; font-size: 1.7rem; font-weight: 500; } .count { color: var(--muted); font: .8rem system-ui, sans-serif; }
+		.file-list { overflow: hidden; border-top: 2px solid var(--ink); background: var(--card); }
+		.file-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(max-content, auto); align-items: center; gap: 16px; padding: 17px 20px; border-bottom: 1px solid var(--line); font: .95rem system-ui, sans-serif; }
+		.file-row:last-child { border-bottom: 0; } .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+		.file-select { display: inline-flex; align-items: center; } .file-checkbox, #select-all { width: 16px; height: 16px; accent-color: var(--accent); } .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+		.file-size { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: .82rem; } .protection-icon { display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: .9rem; line-height: 1; } .file-actions { display: grid; grid-auto-flow: column; align-items: center; gap: 16px; min-width: max-content; white-space: nowrap; } .file-link { padding: 0; border: 0; background: transparent; color: var(--accent); cursor: pointer; font: 700 .95rem system-ui, sans-serif; text-decoration: none; } .decrypt-button { padding: 7px 10px; border: 1px solid var(--soft-border); border-radius: 3px; font-size: .78rem; } .decrypt-button:hover { background: var(--soft-hover); } .delete-button { color: #a34c28; } .delete-button:hover { color: #7d3018; }
+		.empty { padding: 32px 20px; color: var(--muted); font: .95rem system-ui, sans-serif; }
+		.upload-box { max-width: 700px; margin-top: 38px; padding: 34px; border: 1px dashed var(--soft-border); background: color-mix(in srgb, var(--card) 78%, transparent); }
+		.drop-label { display: block; padding: 48px 20px; text-align: center; border: 1px dashed var(--soft-border); background: var(--card); cursor: pointer; transition: border-color .15s ease, background .15s ease, transform .15s ease; } .drop-label:hover, .drop-label.dragging { border-color: var(--accent); background: var(--drop-active); } .drop-label.dragging { transform: translateY(-2px); }
+		.drop-label strong { display: block; margin-bottom: 6px; font-size: 1.3rem; } .drop-label span { color: var(--muted); font: .9rem system-ui, sans-serif; }
+		input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; } .upload-actions { display: flex; align-items: center; gap: 16px; margin-top: 18px; }
+		.field-label { display: block; margin: 22px 0 6px; font: 700 .78rem system-ui, sans-serif; } .text-input, .select-input { width: 100%; padding: 11px 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: .95rem system-ui, sans-serif; } .check-label { display: flex; gap: 8px; align-items: center; margin-top: 18px; font: .9rem system-ui, sans-serif; } .target-note { color: var(--muted); font: .85rem system-ui, sans-serif; }
+		#status { color: var(--muted); font: .85rem system-ui, sans-serif; } .notice { margin-top: 14px; color: #a34c28; font: .9rem system-ui, sans-serif; } .download-status { margin: 14px 0 0; color: var(--muted); font: .85rem system-ui, sans-serif; }
+		.decrypt-dialog { width: min(560px, calc(100% - 28px)); border: 0; padding: 0; color: var(--ink); background: var(--card); box-shadow: 0 18px 60px rgba(24,34,31,.25); } .decrypt-dialog::backdrop { background: rgba(24,34,31,.45); } .decrypt-dialog form { padding: 28px; } .decrypt-dialog h2 { margin: 0 0 8px; } .decrypt-dialog p { color: var(--muted); font: .9rem/1.5 system-ui, sans-serif; } .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; } .dialog-error { color: #a34c28 !important; }
+		@media (max-width: 600px) { header { padding: 20px 0; } main { padding-top: 46px; } .shell { width: min(100% - 28px, 1080px); } .section-head { align-items: start; flex-direction: column; } .bulk-actions { width: 100%; justify-content: space-between; } .file-row { grid-template-columns: auto 1fr auto; gap: 5px 10px; } .file-size { grid-column: 2; } .file-actions { grid-column: 3; grid-row: 1 / span 2; grid-auto-flow: row; justify-items: end; gap: 4px; } .upload-box { padding: 18px; } }
+	</style>
+</head>
+<body>
+	<div class="shell">
+		{{ template "header" . }}
+		{{ if eq .Page "upload" }}{{ template "upload-content" . }}{{ else }}{{ template "index-content" . }}{{ end }}
+	</div>
+	<script>
+		const themeToggle = document.getElementById('theme-toggle');
+		function setTheme(theme) {
+			document.documentElement.dataset.theme = theme;
+			themeToggle.querySelector('span').textContent = theme === 'dark' ? '\u2600' : '\u263e';
+			themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+			try { localStorage.setItem('lanfile-theme', theme); } catch (_) {}
+		}
+		const savedTheme = document.documentElement.dataset.theme || 'light';
+		setTheme(savedTheme);
+		themeToggle.addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+	</script>
+</body>
+</html>
+{{ end }}

@@ -1,0 +1,9 @@
+{{ define "index-content" }}
+<main>
+	<p style="color:var(--warm);font:700 .78rem system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase">Home</p>
+	<h1>Manage Files </h1>
+	<p class="intro">A simple way to share files on your local network.</p>
+	<a class="button" href="/ui/upload">Upload a file <span aria-hidden="true">&#8594;</span></a>
+	{{ template "file-browser" . }}
+</main>
+{{ end }}

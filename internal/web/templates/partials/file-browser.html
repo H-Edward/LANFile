@@ -1,0 +1,178 @@
+{{ define "file-browser" }}
+<section aria-labelledby="files-heading">
+	<div class="section-head"><div><h2 id="files-heading">Your files</h2><span class="count">{{ len .Files }} stored</span></div><div class="bulk-actions"><label class="select-all"><input id="select-all" type="checkbox"> Select all</label><button class="button bulk-download" id="bulk-download" type="button" disabled hidden>Download selected</button><button class="button danger bulk-delete" id="bulk-delete" type="button" disabled hidden>Delete selected</button></div></div>
+	<div class="file-list">
+		{{ if .Files }}{{ range .Files }}{{ template "file-row" . }}{{ end }}{{ else }}<div class="empty">No files yet. Your next upload will appear here.</div>{{ end }}
+	</div>
+	<p class="download-status" id="download-status" role="status"></p>
+</section>
+<dialog class="decrypt-dialog" id="decrypt-dialog" aria-labelledby="decrypt-title">
+	<form id="decrypt-form">
+		<h2 id="decrypt-title">Unlock file</h2>
+		<p id="decrypt-file-name"></p>
+		<div id="dialog-key-fields" hidden>
+			<label class="field-label" for="private-key">Private OpenPGP key</label>
+			<textarea class="text-input" id="private-key" rows="6" autocomplete="off" spellcheck="false" placeholder="Paste the recipient private key"></textarea>
+		</div>
+		<div id="dialog-password-fields" hidden>
+			<label class="field-label" for="download-password">Password</label>
+			<input class="text-input" id="download-password" type="password" autocomplete="current-password">
+		</div>
+		<p class="dialog-error" id="dialog-error" hidden></p>
+		<div class="dialog-actions"><button class="button secondary" id="dialog-cancel" type="button">Cancel</button><button class="button" type="submit">Unlock and download</button></div>
+	</form>
+</dialog>
+<script>
+	const decryptDialog = document.getElementById('decrypt-dialog');
+	const decryptForm = document.getElementById('decrypt-form');
+	const decryptFileName = document.getElementById('decrypt-file-name');
+	const dialogKeyFields = document.getElementById('dialog-key-fields');
+	const dialogPasswordFields = document.getElementById('dialog-password-fields');
+	const privateKeyInput = document.getElementById('private-key');
+	const downloadPasswordInput = document.getElementById('download-password');
+	const dialogError = document.getElementById('dialog-error');
+	let credentialRequest = null;
+
+	function requestCredentials(button) {
+		const encrypted = button.dataset.encrypted;
+		const needsKey = encrypted === 'key' || encrypted === 'both';
+		const needsPassword = encrypted === 'password' || encrypted === 'both';
+		decryptFileName.textContent = 'Credentials for ' + button.dataset.name;
+		dialogKeyFields.hidden = !needsKey;
+		dialogPasswordFields.hidden = !needsPassword;
+		dialogError.hidden = true;
+		privateKeyInput.value = '';
+		downloadPasswordInput.value = '';
+		decryptDialog.showModal();
+		return new Promise((resolve) => { credentialRequest = { resolve, needsKey, needsPassword }; });
+	}
+	decryptForm.addEventListener('submit', (event) => {
+		event.preventDefault();
+		if (credentialRequest.needsKey && !privateKeyInput.value.trim()) { dialogError.textContent = 'A private key is required.'; dialogError.hidden = false; return; }
+		if (credentialRequest.needsPassword && !downloadPasswordInput.value) { dialogError.textContent = 'A password is required.'; dialogError.hidden = false; return; }
+		const credentials = { privateKey: privateKeyInput.value.trim(), password: downloadPasswordInput.value };
+		decryptDialog.close();
+		credentialRequest.resolve(credentials);
+		credentialRequest = null;
+		privateKeyInput.value = '';
+		downloadPasswordInput.value = '';
+	});
+	document.getElementById('dialog-cancel').addEventListener('click', () => {
+		decryptDialog.close();
+		if (credentialRequest) credentialRequest.resolve(null);
+		credentialRequest = null;
+		privateKeyInput.value = '';
+		downloadPasswordInput.value = '';
+	});
+	decryptDialog.addEventListener('cancel', (event) => {
+		event.preventDefault();
+		document.getElementById('dialog-cancel').click();
+	});
+
+	async function decryptAndDownload(button) {
+		const status = document.getElementById('download-status');
+		const encrypted = button.dataset.encrypted;
+		try {
+			status.textContent = 'Preparing download...';
+			const credentials = await requestCredentials(button);
+			if (!credentials) throw new Error('Download cancelled.');
+			const response = await fetch('/d/id/' + encodeURIComponent(button.dataset.id));
+			if (!response.ok) throw new Error('Download failed.');
+			let bytes = await response.arrayBuffer();
+			const message = await openpgp.readMessage({ binaryMessage: new Uint8Array(bytes) });
+			const decryptionKeys = credentials.privateKey ? await openpgp.readPrivateKey({ armoredKey: credentials.privateKey }) : undefined;
+			const decrypted = await openpgp.decrypt({ message, decryptionKeys, passwords: credentials.password ? [credentials.password] : undefined, format: 'binary' });
+			bytes = decrypted.data;
+			const blob = new Blob([bytes]);
+			const link = document.createElement('a');
+			link.href = URL.createObjectURL(blob);
+			link.download = button.dataset.name;
+			link.click();
+			URL.revokeObjectURL(link.href);
+			status.textContent = 'Download ready.';
+		} catch (downloadError) {
+			status.textContent = downloadError.message || 'Download failed.';
+		}
+	}
+	async function deleteFile(button) {
+		const status = document.getElementById('download-status');
+		if (!confirm('Delete "' + button.dataset.name + '"? This cannot be undone.')) return;
+		button.disabled = true;
+		try {
+			const response = await fetch('/delete/id/' + encodeURIComponent(button.dataset.id), { method: 'DELETE' });
+			if (!response.ok) throw new Error(await response.text() || 'Delete failed.');
+			document.querySelector('[data-file-row="' + CSS.escape(button.dataset.id) + '"]')?.remove();
+			status.textContent = 'File deleted.';
+		} catch (deleteError) {
+			button.disabled = false;
+			status.textContent = deleteError.message || 'Delete failed.';
+		}
+	}
+	const selectAll = document.getElementById('select-all');
+	const bulkDownload = document.getElementById('bulk-download');
+	const bulkDelete = document.getElementById('bulk-delete');
+	const getFileCheckboxes = () => [...document.querySelectorAll('.file-checkbox')];
+	function updateSelection() {
+		const fileCheckboxes = getFileCheckboxes();
+		const selected = fileCheckboxes.filter((checkbox) => checkbox.checked);
+		bulkDelete.disabled = selected.length === 0;
+		bulkDelete.hidden = selected.length === 0;
+		bulkDownload.disabled = selected.length === 0;
+		bulkDownload.hidden = selected.length === 0;
+		bulkDownload.textContent = selected.length ? 'Download selected (' + selected.length + ')' : 'Download selected';
+		bulkDelete.textContent = selected.length ? 'Delete selected (' + selected.length + ')' : 'Delete selected';
+		selectAll.checked = fileCheckboxes.length > 0 && selected.length === fileCheckboxes.length;
+		selectAll.indeterminate = selected.length > 0 && selected.length < fileCheckboxes.length;
+	}
+	getFileCheckboxes().forEach((checkbox) => checkbox.addEventListener('change', updateSelection));
+	selectAll.addEventListener('change', () => {
+		getFileCheckboxes().forEach((checkbox) => { checkbox.checked = selectAll.checked; });
+		updateSelection();
+	});
+	bulkDownload.addEventListener('click', async () => {
+		const selected = getFileCheckboxes().filter((checkbox) => checkbox.checked);
+		if (!selected.length) return;
+		const status = document.getElementById('download-status');
+		bulkDownload.disabled = true;
+		bulkDelete.disabled = true;
+		try {
+			for (const checkbox of selected) {
+				status.textContent = 'Downloading ' + checkbox.dataset.name + '...';
+				const response = await fetch('/d/id/' + encodeURIComponent(checkbox.value));
+				if (!response.ok) throw new Error('Could not download ' + checkbox.dataset.name + '.');
+				const blob = await response.blob();
+				const link = document.createElement('a');
+				link.href = URL.createObjectURL(blob);
+				link.download = checkbox.dataset.name;
+				link.click();
+				URL.revokeObjectURL(link.href);
+			}
+			status.textContent = 'Downloads ready.';
+		} catch (downloadError) {
+			status.textContent = downloadError.message || 'Download failed.';
+		} finally {
+			updateSelection();
+		}
+	});
+	bulkDelete.addEventListener('click', async () => {
+		const selected = getFileCheckboxes().filter((checkbox) => checkbox.checked);
+		if (!selected.length || !confirm('Delete ' + selected.length + ' selected file' + (selected.length === 1 ? '' : 's') + '? This cannot be undone.')) return;
+		bulkDelete.disabled = true;
+		const results = await Promise.all(selected.map(async (checkbox) => {
+			try {
+				const response = await fetch('/delete/id/' + encodeURIComponent(checkbox.value), { method: 'DELETE' });
+				if (!response.ok) throw new Error(await response.text() || 'Delete failed.');
+				return { checkbox, success: true };
+			} catch (error) {
+				return { checkbox, success: false, error };
+			}
+		}));
+		results.filter((result) => result.success).forEach((result) => result.checkbox.closest('[data-file-row]')?.remove());
+		const failed = results.filter((result) => !result.success);
+		document.getElementById('download-status').textContent = failed.length ? failed.length + ' file(s) could not be deleted.' : 'Files deleted.';
+		updateSelection();
+	});
+	document.querySelectorAll('.decrypt-button').forEach((button) => button.addEventListener('click', () => decryptAndDownload(button)));
+	document.querySelectorAll('.delete-button').forEach((button) => button.addEventListener('click', () => deleteFile(button)));
+</script>
+{{ end }}
