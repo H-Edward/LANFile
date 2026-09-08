@@ -17,6 +17,7 @@ RUN apk add --no-cache ca-certificates
 RUN adduser -D lanfileuser
 
 COPY --from=builder /app/lanfile /app/lanfile
+COPY --from=builder /app/.env /app/.env
 RUN mkdir -p /app/data \
     && chown -R lanfileuser:lanfileuser /app
 USER lanfileuser

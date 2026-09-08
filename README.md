@@ -21,7 +21,7 @@ No accounts, no advanced configuration, no external client-side tools.
 
 ### Planned
 
-* [ ] Authentication for overwriting files (password or key)
+* [ ] Authorization for overwriting files (password or key)
 * [ ] Pastebin-style snippet sharing via CLI and Web UI
 
 ---
