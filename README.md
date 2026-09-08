@@ -6,6 +6,10 @@ It's designed to be simple, has the ability to upload and download files via CLI
 
 Currently, there is no plan for users, however authorisation to overwrite files is planned via key and password
 
+## WebUI 
+
+![WebUI](https://raw.githubusercontent.com/H-Edward/LANFile/main/media/home.png)
+
 Features:
 - [x] Upload files via CLI
 - [x] Upload files via Web UI
