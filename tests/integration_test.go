@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/H-Edward/LANFile/internal/database"
 	"github.com/H-Edward/LANFile/internal/files"
