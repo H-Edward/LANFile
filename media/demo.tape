@@ -1,13 +1,13 @@
 Output demo.gif
 
-Type "curl -T helloworld.txt lanfile.example/u/name/helloworld.txt"
+Type "curl -T helloworld.txt lanfile.example/api/u/name/helloworld.txt"
 Sleep 500ms 
 
 Enter 
 
 Sleep 5s 
 
-Type "curl lanfile.example/d/name/helloworld.txt"
+Type "curl lanfile.example/api/d/name/helloworld.txt"
 Enter
 
 Sleep 5s
@@ -17,7 +17,7 @@ Enter
 
 Sleep 500ms
 
-Type "curl -T important_document.pdf.gpg lanfile.example/u/name/encrypted_document.pdf.gpg?encrypted=key""
+Type "curl -T important_document.pdf.gpg lanfile.example/api/u/name/encrypted_document.pdf.gpg?encrypted=key""
 
 Sleep 500ms
 

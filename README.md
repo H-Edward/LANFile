@@ -46,13 +46,13 @@ Download a file by name or ID.
 
 | Method | Endpoint             | Description                        |
 | ------ | -------------------- | ---------------------------------- |
-| `GET`  | `/d/name/{filename}` | Download by filename (when unique) |
-| `GET`  | `/d/id/{fileID}`     | Download by file ID                |
+| `GET`  | `/api/d/name/{filename}` | Download by filename (when unique) |
+| `GET`  | `/api/d/id/{fileID}`     | Download by file ID                |
 
 Example:
 
 ```bash
-curl -O http://server/d/name/example.txt
+curl -O http://server/api/d/name/example.txt
 ```
 
 ---
@@ -63,13 +63,13 @@ Upload a file by name or ID.
 
 | Method | Endpoint             | Description                           |
 | ------ | -------------------- | ------------------------------------- | 
-| `PUT`  | `/u/name/{filename}` | Upload a file with a specific filename|
-| `PUT`  | `/u/id/{fileID}`     | Update an existing file by ID         |
+| `PUT`  | `/api/u/name/{filename}` | Upload a file with a specific filename|
+| `PUT`  | `/api/u/id/{fileID}`     | Update an existing file by ID         |
 
 Example:
 
 ```bash
-curl -T example.txt "http://server/u/name/example.txt"
+curl -T example.txt "http://server/api/u/name/example.txt"
 ```
 
 #### Query Parameters
@@ -77,7 +77,7 @@ curl -T example.txt "http://server/u/name/example.txt"
 | Parameter    | Values                    | Default | Description                                                  |
 | ------------ | ------------------------- | ------- | ------------------------------------------------------------ |
 | `encryption` | `key`, `password`, `none` | `none`  | Indicates the file's encryption method (informational only). |
-| `overwrite`  | `true`, `false`           | `false` | Overwrite an existing file with the same name for `/u/name/{filename}`. |
+| `overwrite`  | `true`, `false`           | `false` | Overwrite an existing file with the same name for `/api/u/name/{filename}`. |
 
 ---
 
@@ -87,20 +87,20 @@ Search for files by name or ID.
 
 | Method | Endpoint               | Description                               |
 | ------ | ---------------------- | ----------------------------------------- |
-| `GET`  | `/s/name/{searchTerm}` | Search by filename (substring by default) |
-| `GET`  | `/s/id/{searchTerm}`   | Search by exact file ID                   |
-| `GET`  | `/s/getall`            | List all stored file metadata             |
+| `GET`  | `/api/s/name/{searchTerm}` | Search by filename (substring by default) |
+| `GET`  | `/api/s/id/{searchTerm}`   | Search by exact file ID                   |
+| `GET`  | `/api/s/getall`            | List all stored file metadata             |
 
 #### Query Parameters
 
 | Parameter | Values          | Default | Description                                                 |
 | --------- | --------------- | ------- | ----------------------------------------------------------- |
-| `exact`   | `true`, `false` | `false` | Require an exact filename match for `/s/name/{searchTerm}`. |
+| `exact`   | `true`, `false` | `false` | Require an exact filename match for `/api/s/name/{searchTerm}`. |
 
 Example:
 
 ```bash
-curl "http://server/s/name/report?exact=true"
+curl "http://server/api/s/name/report?exact=true"
 ```
 
 ---

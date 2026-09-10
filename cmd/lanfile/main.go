@@ -47,11 +47,12 @@ func main() {
 	r := chi.NewRouter()
 
 	fileService := files.NewService(db)
-	APIRouter := httpapi.NewAPIRouter(fileService, dataDir)
-	r.Mount("/", APIRouter)
 
 	webRouter := web.NewWebRouter(fileService)
-	r.Mount("/ui", webRouter)
+	r.Mount("/", webRouter)
+
+	APIRouter := httpapi.NewAPIRouter(fileService, dataDir)
+	r.Mount("/api", APIRouter)
 
 	log.Printf("Starting server on %s...", addr)
 	addr = ":" + addr
