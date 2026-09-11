@@ -18,10 +18,11 @@ No accounts, no advanced configuration, no external client-side tools.
 * [x] Download files via the Web UI
 * [x] Password-based file encryption/decryption in the Web UI
 * [x] GPG encryption/decryption support via CLI
+* [x] Authorization for overwriting files
+
 
 ### Planned
 
-* [ ] Authorization for overwriting files (password or key)
 * [ ] Pastebin-style snippet sharing via CLI and Web UI
 
 ---
@@ -52,7 +53,15 @@ Download a file by name or ID.
 Example:
 
 ```bash
-curl -O http://server/api/d/name/example.txt
+curl -O server/api/d/name/example.txt
+```
+
+#### Authentication
+
+Files can be protected with a password. If a file is password-protected, you must provide the correct password to download it using HTTP Basic Auth.
+
+```bash
+curl -O -u :{password} https://server/api/d/id/{FileID}
 ```
 
 ---
@@ -69,7 +78,17 @@ Upload a file by name or ID.
 Example:
 
 ```bash
-curl -T example.txt "http://server/api/u/name/example.txt"
+curl -T example.txt "server/api/u/name/example.txt"
+```
+
+#### Authentication
+
+Using HTTP Basic Auth, you can provide a password to stop unauthorized access (overwriting and downloading) of a file. The password is hashed and stored in the database, so it is not recoverable. If you forget the password, you will need to delete the file and re-upload it.
+
+e.g.
+
+```bash
+curl -T example.txt -u :{password} "https://server/api/u/id/{FileID}"
 ```
 
 #### Query Parameters
@@ -100,7 +119,7 @@ Search for files by name or ID.
 Example:
 
 ```bash
-curl "http://server/api/s/name/report?exact=true"
+curl "server/api/s/name/report?exact=true"
 ```
 
 ---
