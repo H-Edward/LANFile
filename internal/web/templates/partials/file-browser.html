@@ -115,6 +115,7 @@
 		const status = document.getElementById('download-status');
 		const encrypted = button.dataset.encrypted;
 		try {
+			if (!window.openpgp) throw new Error('Decryption is unavailable because OpenPGP could not be loaded.');
 			status.textContent = 'Preparing download...';
 			const credentials = await requestCredentials(button);
 			if (!credentials) throw new Error('Download cancelled.');

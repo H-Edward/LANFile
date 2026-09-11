@@ -14,6 +14,7 @@
 			<label class="field-label" for="display-name">Custom name</label>
 			<input class="text-input" id="display-name" type="text" value="{{ .TargetName }}" placeholder="Optional: name this file">
 			{{ if .TargetID }}<p class="target-note">Replacing the selected file.</p>{{ if .NeedsAuth }}<label class="field-label" for="authorization-password">File password</label><input class="text-input" id="authorization-password" type="password" autocomplete="current-password" required><p class="target-note">A password is required to replace this file.</p>{{ end }}{{ end }}
+			{{ if not .TargetID }}<label class="check-label"><input id="require-auth" type="checkbox"> Require a password to download or replace this file</label><div id="fresh-auth-fields" hidden><label class="field-label" for="fresh-auth-password">Authorization password</label><input class="text-input" id="fresh-auth-password" type="password" autocomplete="new-password"><p class="target-note">Anyone downloading or replacing this file will need this password.</p></div>{{ end }}
 			<label class="field-label" for="encryption">Encryption</label>
 			<select class="select-input" id="encryption" required>
 				<option value="none">None</option>
@@ -53,6 +54,10 @@
 	const targetID = form.dataset.targetId;
 	const needsAuth = form.dataset.needsAuth === 'true';
 	const authorizationPassword = document.getElementById('authorization-password');
+	const requireAuth = document.getElementById('require-auth');
+	const freshAuthFields = document.getElementById('fresh-auth-fields');
+	const freshAuthPassword = document.getElementById('fresh-auth-password');
+	if (requireAuth) requireAuth.addEventListener('change', () => { freshAuthFields.hidden = !requireAuth.checked; freshAuthPassword.required = requireAuth.checked; });
 	function updateEncryptionFields() {
 		keyFields.hidden = encryption.value !== 'encrypt-key';
 		passwordFields.hidden = encryption.value !== 'encrypt-password';
@@ -91,6 +96,7 @@
 			if (displayName.value.trim()) params.set('name', displayName.value.trim());
 			let body = file;
 			if (encryption.value === 'encrypt-key' || encryption.value === 'encrypt-password') {
+				if (!window.openpgp) throw new Error('Encryption is unavailable because OpenPGP could not be loaded.');
 				const keyMode = encryption.value === 'encrypt-key';
 				if (keyMode && !publicKey.value.trim()) throw new Error('A recipient public key is required.');
 				if (!keyMode && !encryptionPassword.value) throw new Error('An encryption password is required.');
@@ -104,8 +110,8 @@
 			}
 			const query = params.toString();
 			const endpoint = targetID ? '/u/id/' + encodeURIComponent(targetID) : '/u/name/' + encodeURIComponent(file.name);
-			const authorization = authorizationPassword?.value || '';
-			if (needsAuth && !authorization) throw new Error('A file password is required.');
+			const authorization = needsAuth ? (authorizationPassword?.value || '') : (requireAuth?.checked ? freshAuthPassword.value : '');
+			if ((needsAuth || requireAuth?.checked) && !authorization) throw new Error('A file password is required.');
 			const response = await fetch('/api' + endpoint + (query ? '?' + query : ''), { method: 'PUT', body, headers: authorization ? { Authorization: 'Basic ' + btoa('lanfile:' + authorization) } : {} });
 			if (!response.ok) throw new Error(await response.text());
 			window.location.href = '/';
