@@ -4,7 +4,7 @@ import "time"
 
 type File struct {
 	ID           string `gorm:"primaryKey"`
-	StorageKey   string `gorm:"uniqueIndex;not null"`
+	StorageKey   string `gorm:"uniqueIndex;not null" json:"-"`
 	OriginalName string `gorm:"not null"`
 	ContentType  string
 	Size         int64 `gorm:"not null"`

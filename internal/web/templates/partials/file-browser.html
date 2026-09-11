@@ -117,10 +117,10 @@
 		try {
 			if (!window.openpgp) throw new Error('Decryption is unavailable because OpenPGP could not be loaded.');
 			status.textContent = 'Preparing download...';
-			const credentials = await requestCredentials(button);
-			if (!credentials) throw new Error('Download cancelled.');
 			const authorization = await requestAuthorization(button);
 			if (button.dataset.needsAuth === 'true' && !authorization) throw new Error('Download cancelled.');
+			const credentials = await requestCredentials(button);
+			if (!credentials) throw new Error('Download cancelled.');
 			const response = await fetch('/api/d/id/' + encodeURIComponent(button.dataset.id), { headers: authorization ? { Authorization: authorization } : {} });
 			if (!response.ok) throw new Error('Download failed.');
 			let bytes = await response.arrayBuffer();
@@ -159,7 +159,9 @@
 		if (!confirm('Delete "' + button.dataset.name + '"? This cannot be undone.')) return;
 		button.disabled = true;
 		try {
-			const response = await fetch('/delete/id/' + encodeURIComponent(button.dataset.id), { method: 'DELETE' });
+			const authorization = await requestAuthorization(button);
+			if (button.dataset.needsAuth === 'true' && !authorization) throw new Error('Delete cancelled.');
+			const response = await fetch('/api/delete/id/' + encodeURIComponent(button.dataset.id), { method: 'DELETE', headers: authorization ? { Authorization: authorization } : {} });
 			if (!response.ok) throw new Error(await response.text() || 'Delete failed.');
 			document.querySelector('[data-file-row="' + CSS.escape(button.dataset.id) + '"]')?.remove();
 			status.textContent = 'File deleted.';
@@ -211,15 +213,18 @@
 		const selected = getFileCheckboxes().filter((checkbox) => checkbox.checked);
 		if (!selected.length || !confirm('Delete ' + selected.length + ' selected file' + (selected.length === 1 ? '' : 's') + '? This cannot be undone.')) return;
 		bulkDelete.disabled = true;
-		const results = await Promise.all(selected.map(async (checkbox) => {
+		const results = [];
+		for (const checkbox of selected) {
 			try {
-				const response = await fetch('/delete/id/' + encodeURIComponent(checkbox.value), { method: 'DELETE' });
+				const authorization = await requestAuthorization(checkbox);
+				if (checkbox.dataset.needsAuth === 'true' && !authorization) throw new Error('Delete cancelled.');
+				const response = await fetch('/api/delete/id/' + encodeURIComponent(checkbox.value), { method: 'DELETE', headers: authorization ? { Authorization: authorization } : {} });
 				if (!response.ok) throw new Error(await response.text() || 'Delete failed.');
-				return { checkbox, success: true };
+				results.push({ checkbox, success: true });
 			} catch (error) {
-				return { checkbox, success: false, error };
+				results.push({ checkbox, success: false, error });
 			}
-		}));
+		}
 		results.filter((result) => result.success).forEach((result) => result.checkbox.closest('[data-file-row]')?.remove());
 		const failed = results.filter((result) => !result.success);
 		document.getElementById('download-status').textContent = failed.length ? failed.length + ' file(s) could not be deleted.' : 'Files deleted.';
