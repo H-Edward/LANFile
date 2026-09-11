@@ -19,11 +19,13 @@ func NewService(db *gorm.DB) *Service {
 }
 
 type CreateFileInput struct {
-	OriginalName string
-	ContentType  string
-	Size         int64
-	StorageKey   string
-	Encrypted    string
+	OriginalName      string
+	ContentType       string
+	Size              int64
+	StorageKey        string
+	Encrypted         string
+	NeedsAuth         bool
+	AuthorisationHash string
 }
 
 func (s *Service) GetAll(ctx context.Context) ([]database.File, error) {
@@ -61,12 +63,14 @@ func (s *Service) SearchByName(ctx context.Context, originalName string) ([]data
 
 func (s *Service) Create(ctx context.Context, input CreateFileInput) (*database.File, error) {
 	file := &database.File{
-		ID:           uuid.New().String(),
-		StorageKey:   input.StorageKey,
-		OriginalName: input.OriginalName,
-		ContentType:  input.ContentType,
-		Size:         input.Size,
-		Encrypted:    input.Encrypted,
+		ID:                uuid.New().String(),
+		StorageKey:        input.StorageKey,
+		OriginalName:      input.OriginalName,
+		ContentType:       input.ContentType,
+		Size:              input.Size,
+		Encrypted:         input.Encrypted,
+		NeedsAuth:         input.NeedsAuth,
+		AuthorisationHash: input.AuthorisationHash,
 	}
 
 	if err := s.db.WithContext(ctx).Create(file).Error; err != nil {
@@ -87,7 +91,8 @@ func (s *Service) OverwriteByID(ctx context.Context, id string, input CreateFile
 	file.Size = input.Size
 	file.StorageKey = input.StorageKey
 	file.Encrypted = input.Encrypted
-
+	file.NeedsAuth = input.NeedsAuth
+	file.AuthorisationHash = input.AuthorisationHash
 	if err := s.db.WithContext(ctx).Save(file).Error; err != nil {
 		return nil, err
 	}
@@ -104,4 +109,3 @@ func (s *Service) DeleteByID(ctx context.Context, id string) error {
 	}
 	return nil
 }
-

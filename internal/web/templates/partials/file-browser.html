@@ -22,6 +22,16 @@
 		<div class="dialog-actions"><button class="button secondary" id="dialog-cancel" type="button">Cancel</button><button class="button" type="submit">Unlock and download</button></div>
 	</form>
 </dialog>
+<dialog class="decrypt-dialog" id="auth-dialog" aria-labelledby="auth-title">
+	<form id="auth-form">
+		<h2 id="auth-title">Authorize file</h2>
+		<p id="auth-file-name"></p>
+		<label class="field-label" for="authorization-password">File password</label>
+		<input class="text-input" id="authorization-password" type="password" autocomplete="current-password" required>
+		<p class="dialog-error" id="auth-error" hidden></p>
+		<div class="dialog-actions"><button class="button secondary" id="auth-cancel" type="button">Cancel</button><button class="button" type="submit">Continue</button></div>
+	</form>
+</dialog>
 <script>
 	const decryptDialog = document.getElementById('decrypt-dialog');
 	const decryptForm = document.getElementById('decrypt-form');
@@ -32,6 +42,38 @@
 	const downloadPasswordInput = document.getElementById('download-password');
 	const dialogError = document.getElementById('dialog-error');
 	let credentialRequest = null;
+	const authDialog = document.getElementById('auth-dialog');
+	const authForm = document.getElementById('auth-form');
+	const authFileName = document.getElementById('auth-file-name');
+	const authorizationPassword = document.getElementById('authorization-password');
+	const authError = document.getElementById('auth-error');
+	let authRequest = null;
+
+	function requestAuthorization(button) {
+		if (button.dataset.needsAuth !== 'true') return Promise.resolve(null);
+		authFileName.textContent = 'Enter the password for ' + button.dataset.name;
+		authError.hidden = true;
+		authorizationPassword.value = '';
+		authDialog.showModal();
+		return new Promise((resolve) => { authRequest = { resolve }; });
+	}
+	function authorizationHeader(password) { return 'Basic ' + btoa('lanfile:' + password); }
+	authForm.addEventListener('submit', (event) => {
+		event.preventDefault();
+		if (!authorizationPassword.value) { authError.textContent = 'A password is required.'; authError.hidden = false; return; }
+		authDialog.close();
+		authRequest.resolve(authorizationHeader(authorizationPassword.value));
+		authRequest = null;
+	});
+	document.getElementById('auth-cancel').addEventListener('click', () => {
+		authDialog.close();
+		if (authRequest) authRequest.resolve(null);
+		authRequest = null;
+	});
+	authDialog.addEventListener('cancel', (event) => {
+		event.preventDefault();
+		document.getElementById('auth-cancel').click();
+	});
 
 	function requestCredentials(button) {
 		const encrypted = button.dataset.encrypted;
@@ -76,7 +118,9 @@
 			status.textContent = 'Preparing download...';
 			const credentials = await requestCredentials(button);
 			if (!credentials) throw new Error('Download cancelled.');
-			const response = await fetch('/d/id/' + encodeURIComponent(button.dataset.id));
+			const authorization = await requestAuthorization(button);
+			if (button.dataset.needsAuth === 'true' && !authorization) throw new Error('Download cancelled.');
+			const response = await fetch('/api/d/id/' + encodeURIComponent(button.dataset.id), { headers: authorization ? { Authorization: authorization } : {} });
 			if (!response.ok) throw new Error('Download failed.');
 			let bytes = await response.arrayBuffer();
 			const message = await openpgp.readMessage({ binaryMessage: new Uint8Array(bytes) });
@@ -93,6 +137,21 @@
 		} catch (downloadError) {
 			status.textContent = downloadError.message || 'Download failed.';
 		}
+	}
+	async function downloadFile(button) {
+		const status = document.getElementById('download-status');
+		try {
+			const authorization = await requestAuthorization(button);
+			if (button.dataset.needsAuth === 'true' && !authorization) throw new Error('Download cancelled.');
+			const response = await fetch('/api/d/id/' + encodeURIComponent(button.dataset.id), { headers: authorization ? { Authorization: authorization } : {} });
+			if (!response.ok) throw new Error(await response.text() || 'Download failed.');
+			const link = document.createElement('a');
+			link.href = URL.createObjectURL(await response.blob());
+			link.download = button.dataset.name;
+			link.click();
+			URL.revokeObjectURL(link.href);
+			status.textContent = 'Download ready.';
+		} catch (downloadError) { status.textContent = downloadError.message || 'Download failed.'; }
 	}
 	async function deleteFile(button) {
 		const status = document.getElementById('download-status');
@@ -138,14 +197,7 @@
 		try {
 			for (const checkbox of selected) {
 				status.textContent = 'Downloading ' + checkbox.dataset.name + '...';
-				const response = await fetch('/d/id/' + encodeURIComponent(checkbox.value));
-				if (!response.ok) throw new Error('Could not download ' + checkbox.dataset.name + '.');
-				const blob = await response.blob();
-				const link = document.createElement('a');
-				link.href = URL.createObjectURL(blob);
-				link.download = checkbox.dataset.name;
-				link.click();
-				URL.revokeObjectURL(link.href);
+				await downloadFile(checkbox);
 			}
 			status.textContent = 'Downloads ready.';
 		} catch (downloadError) {
@@ -172,7 +224,10 @@
 		document.getElementById('download-status').textContent = failed.length ? failed.length + ' file(s) could not be deleted.' : 'Files deleted.';
 		updateSelection();
 	});
+	document.querySelectorAll('.download-button').forEach((button) => button.addEventListener('click', () => downloadFile(button)));
+	document.querySelectorAll('.auth-download-button').forEach((button) => button.addEventListener('click', () => downloadFile(button)));
 	document.querySelectorAll('.decrypt-button').forEach((button) => button.addEventListener('click', () => decryptAndDownload(button)));
+	document.querySelectorAll('.auth-decrypt-button').forEach((button) => button.addEventListener('click', () => decryptAndDownload(button)));
 	document.querySelectorAll('.delete-button').forEach((button) => button.addEventListener('click', () => deleteFile(button)));
 </script>
 {{ end }}

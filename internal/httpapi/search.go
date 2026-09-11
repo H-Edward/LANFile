@@ -23,7 +23,7 @@ func NewSearchHandler(fileService *files.Service, dataDir string) *SearchHandler
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		if r.URL.Path == "/s/getall" {
+		if r.URL.Path == "/api/s/getall" {
 			h.GetAllFiles(w, r)
 		} else if r.PathValue("name") != "" {
 			h.SearchByName(w, r)
@@ -57,8 +57,7 @@ func (h *SearchHandler) SearchByName(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else {
-
-		files, err := h.fileService.SearchByName(r.Context(), name)
+		files, err = h.fileService.SearchByName(r.Context(), name)
 		if err != nil {
 			http.Error(w, "Error searching for files", http.StatusInternalServerError)
 			return

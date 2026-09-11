@@ -25,30 +25,22 @@ func NewUploadHandler(fileService *files.Service, dataDir string) *UploadHandler
 	}
 }
 
-func returnEncryptionType(r *http.Request) (string, error) {
-	encrypted := r.URL.Query().Get("encrypted")
-	if encrypted != "key" && encrypted != "password" && encrypted != "" {
-		return "", fmt.Errorf("Invalid encryption method")
-	}
-	if encrypted == "" {
-		return "none", nil
-	}
-	return encrypted, nil
-}
-
-func returnOverwriteValue(r *http.Request) (string, error) {
-	overwrite := r.URL.Query().Get("overwrite")
-	if overwrite != "true" && overwrite != "false" && overwrite != "" {
-		return "", fmt.Errorf("Invalid overwrite value")
-	}
-	if overwrite == "" {
-		return "false", nil
-	}
-	return overwrite, nil
-}
-
 // createNewFileRecord handles the creation of a new file record in the database and saves the uploaded file to disk. It also handles overwriting existing files if specified.
 func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Request, overwrite string, name string, encrypted string, matchingFiles []database.File) {
+
+	// Auth
+	if overwrite == "true" && len(matchingFiles) == 1 {
+		file := matchingFiles[0]
+		hasAuth, err := ReturnRequestHasAuth(r, file)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		if !hasAuth {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
 
 	storageKey := uuid.New().String()
 	path := filepath.Join(h.dataDir, "files", storageKey)
@@ -84,18 +76,39 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 
 	size := int64(n) + written
 
+	var authHash string = "none"
+
+	// At this stage, the user has been authed
+	if overwrite == "true" && len(matchingFiles) == 1 {
+		file := matchingFiles[0]
+		authHash = file.AuthorisationHash
+	}
+	if overwrite == "false" {
+		_, secret, ok := r.BasicAuth()
+		if ok && secret != "" {
+			authHash, err = files.GenerateHash(secret)
+			if err != nil {
+				_ = os.Remove(path)
+				http.Error(w, "Failed to generate authorization hash", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
 	input := files.CreateFileInput{
-		OriginalName: name,
-		ContentType:  mimeType,
-		Size:         size,
-		StorageKey:   storageKey,
-		Encrypted:    encrypted,
+		OriginalName:      name,
+		ContentType:       mimeType,
+		Size:              size,
+		StorageKey:        storageKey,
+		Encrypted:         encrypted,
+		NeedsAuth:         authHash != "none",
+		AuthorisationHash: authHash,
 	}
 	var file *database.File
 	// If overwrite is true and there is exactly one matching file, overwrite it.
 	if overwrite == "true" && len(matchingFiles) == 1 {
 		oldFile := matchingFiles[0]
-
+		input.NeedsAuth = oldFile.NeedsAuth
 		file, err = h.fileService.OverwriteByID(
 			r.Context(),
 			oldFile.ID,
@@ -158,7 +171,7 @@ func (h *UploadHandler) handleUploadByName(w http.ResponseWriter, r *http.Reques
 
 	// Unfunctional encryption, lets the user specify if the file is encrypted.
 	// This is just for metadata purposes, the file is not necessarily encrypted.
-	encrypted, err := returnEncryptionType(r)
+	encrypted, err := ReturnEncryptionType(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -167,7 +180,7 @@ func (h *UploadHandler) handleUploadByName(w http.ResponseWriter, r *http.Reques
 	// Lets the user overwrite a file via its pretty name, if there is only one
 	// file with that name. If there are multiple files with the same name,
 	// the user must specify the ID of the file to overwrite.
-	overwrite, err := returnOverwriteValue(r)
+	overwrite, err := ReturnOverwriteValue(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -202,7 +215,7 @@ func (h *UploadHandler) handleUploadByName(w http.ResponseWriter, r *http.Reques
 
 // This function is exclusively for overwriting, since the user isn't able to set a custom ID
 func (h *UploadHandler) handleUploadById(w http.ResponseWriter, r *http.Request) {
-	encrypted, err := returnEncryptionType(r)
+	encrypted, err := ReturnEncryptionType(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

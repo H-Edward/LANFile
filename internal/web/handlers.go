@@ -8,6 +8,7 @@ type IndexData struct {
 	Files      []FileData
 	TargetID   string
 	TargetName string
+	NeedsAuth  bool
 }
 
 type FileData struct {
@@ -15,6 +16,7 @@ type FileData struct {
 	Name      string
 	Size      int64
 	Encrypted string
+	NeedsAuth bool
 }
 
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +28,8 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	fileData := make([]FileData, 0, len(files))
 	for _, file := range files {
-		fileData = append(fileData, FileData{ID: file.ID, Name: file.OriginalName, Size: file.Size, Encrypted: file.Encrypted})
+		needsAuth := file.NeedsAuth || file.AuthorisationHash != "none"
+		fileData = append(fileData, FileData{ID: file.ID, Name: file.OriginalName, Size: file.Size, Encrypted: file.Encrypted, NeedsAuth: needsAuth})
 	}
 
 	data := IndexData{
@@ -44,7 +47,16 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	targetID := r.URL.Query().Get("id")
 	targetName := r.URL.Query().Get("name")
-	data := IndexData{Title: "Upload | LANFile", Page: "upload", TargetID: targetID, TargetName: targetName}
+	needsAuth := false
+	if targetID != "" {
+		file, err := h.files.GetByID(r.Context(), targetID)
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		needsAuth = file.NeedsAuth || file.AuthorisationHash != "none"
+	}
+	data := IndexData{Title: "Upload | LANFile", Page: "upload", TargetID: targetID, TargetName: targetName, NeedsAuth: needsAuth}
 	if err := h.templates.ExecuteTemplate(w, "upload-page", data); err != nil {
 		http.Error(w, "Failed to render page", http.StatusInternalServerError)
 	}

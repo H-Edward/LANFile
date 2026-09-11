@@ -8,12 +8,12 @@
 	<h1>Upload a file.</h1>
 	<p class="intro">Choose a file to upload.</p>
 	<div class="upload-box">
-		<form id="upload-form" data-target-id="{{ .TargetID }}">
+		<form id="upload-form" data-target-id="{{ .TargetID }}" data-needs-auth="{{ .NeedsAuth }}">
 			<label class="drop-label" id="drop-zone" for="file-input"><strong id="file-label">Drop a file here</strong><span>or click to browse your device</span></label>
 			<input id="file-input" type="file" required>
 			<label class="field-label" for="display-name">Custom name</label>
 			<input class="text-input" id="display-name" type="text" value="{{ .TargetName }}" placeholder="Optional: name this file">
-			{{ if .TargetID }}<p class="target-note">Replacing the selected file.</p>{{ end }}
+			{{ if .TargetID }}<p class="target-note">Replacing the selected file.</p>{{ if .NeedsAuth }}<label class="field-label" for="authorization-password">File password</label><input class="text-input" id="authorization-password" type="password" autocomplete="current-password" required><p class="target-note">A password is required to replace this file.</p>{{ end }}{{ end }}
 			<label class="field-label" for="encryption">Encryption</label>
 			<select class="select-input" id="encryption" required>
 				<option value="none">None</option>
@@ -51,6 +51,8 @@
 	const status = document.getElementById('status');
 	const error = document.getElementById('error');
 	const targetID = form.dataset.targetId;
+	const needsAuth = form.dataset.needsAuth === 'true';
+	const authorizationPassword = document.getElementById('authorization-password');
 	function updateEncryptionFields() {
 		keyFields.hidden = encryption.value !== 'encrypt-key';
 		passwordFields.hidden = encryption.value !== 'encrypt-password';
@@ -102,9 +104,11 @@
 			}
 			const query = params.toString();
 			const endpoint = targetID ? '/u/id/' + encodeURIComponent(targetID) : '/u/name/' + encodeURIComponent(file.name);
-			const response = await fetch(endpoint + (query ? '?' + query : ''), { method: 'PUT', body });
+			const authorization = authorizationPassword?.value || '';
+			if (needsAuth && !authorization) throw new Error('A file password is required.');
+			const response = await fetch('/api' + endpoint + (query ? '?' + query : ''), { method: 'PUT', body, headers: authorization ? { Authorization: 'Basic ' + btoa('lanfile:' + authorization) } : {} });
 			if (!response.ok) throw new Error(await response.text());
-			window.location.href = '/ui/';
+			window.location.href = '/';
 		} catch (uploadError) { status.textContent = ''; error.textContent = uploadError.message || 'Upload failed.'; error.hidden = false; }
 	});
 </script>

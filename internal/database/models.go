@@ -10,4 +10,7 @@ type File struct {
 	Size         int64 `gorm:"not null"`
 	CreatedAt    time.Time
 	Encrypted    string `gorm:"not null;default:none"`
+
+	NeedsAuth         bool   `gorm:"not null;default:false"`
+	AuthorisationHash string `gorm:"not null;default:none" json:"-"`
 }

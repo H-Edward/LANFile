@@ -48,14 +48,24 @@ func (h *DownloadHandler) GetByName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(files) > 1 {
-		//
 		http.Error(w, "Multiple files found with the same name, use the file ID", http.StatusConflict)
 		return
 	}
 	file := files[0]
 	path := filepath.Join(h.dataDir, "files", file.StorageKey)
 
+	hasAuth, err := ReturnRequestHasAuth(r, file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	if !hasAuth {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	setDownloadFilename(w, file.OriginalName)
+
 	http.ServeFile(w, r, path)
 }
 
@@ -68,6 +78,16 @@ func (h *DownloadHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := filepath.Join(h.dataDir, "files", file.StorageKey)
+
+	hasAuth, err := ReturnRequestHasAuth(r, *file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+	if !hasAuth {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	setDownloadFilename(w, file.OriginalName)
 	http.ServeFile(w, r, path)
