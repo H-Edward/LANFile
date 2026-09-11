@@ -27,9 +27,11 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.DeleteByID(w, r)
 		} else {
 			http.Error(w, "Missing id in path", http.StatusBadRequest)
+			return
 		}
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 }
 

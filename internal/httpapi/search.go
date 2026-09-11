@@ -31,9 +31,11 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.SearchByID(w, r)
 		} else {
 			http.Error(w, "Missing name or id in path", http.StatusBadRequest)
+			return
 		}
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 }
 
