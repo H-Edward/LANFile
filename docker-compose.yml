@@ -1,9 +1,7 @@
 services:
   lanfile:
-    build: .
-    env_file:
-      - .env
+    image: ghcr.io/H-Edward/LANFile:latest
     ports:
-      - "${LANFILE_PORT}:${LANFILE_PORT}"
+      - "8080:8080"
     volumes:
       - ./data:/app/data
