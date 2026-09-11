@@ -18,7 +18,13 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func newIntegrationServer(t *testing.T) (*httptest.Server, string) {
+type testServer struct {
+	*httptest.Server
+	DataDir string
+	Client  *http.Client
+}
+
+func newIntegrationServer(t *testing.T) *testServer {
 	t.Helper()
 
 	_, testFile, _, _ := runtime.Caller(0)
@@ -54,123 +60,221 @@ func newIntegrationServer(t *testing.T) (*httptest.Server, string) {
 
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
-	return server, isolatedDir
+
+	return &testServer{
+		Server:  server,
+		DataDir: isolatedDir,
+		Client:  server.Client(),
+	}
 }
 
-func TestFileLifecycleOverHTTP(t *testing.T) {
-	server, dataDir := newIntegrationServer(t)
-	client := server.Client()
+// Helper to handle requests easily inside subtests
+func (ts *testServer) doRequest(t *testing.T, method, path string, body string, user, password string) (*http.Response, string) {
+	t.Helper()
+	var bodyReader io.Reader
+	if body != "" {
+		bodyReader = bytes.NewBufferString(body)
+	}
 
-	upload := func(path, content string) map[string]any {
-		t.Helper()
-		request, err := http.NewRequest(http.MethodPut, server.URL+path, bytes.NewBufferString(content))
-		if err != nil {
-			t.Fatalf("create upload request: %v", err)
+	req, err := http.NewRequest(method, ts.URL+path, bodyReader)
+	if err != nil {
+		t.Fatalf("failed to create request [%s %s]: %v", method, path, err)
+	}
+
+	if user != "" || password != "" {
+		req.SetBasicAuth(user, password)
+	}
+
+	resp, err := ts.Client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to execute request [%s %s]: %v", method, path, err)
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+
+	return resp, string(respBody)
+}
+
+func TestUploadAPI(t *testing.T) {
+	ts := newIntegrationServer(t)
+
+	t.Run("Upload New File By Name", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodPut, "/api/u/name/hello.txt", "Hello World", "", "")
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected status 201 Created, got %d. Body: %s", resp.StatusCode, body)
 		}
-		response, err := client.Do(request)
-		if err != nil {
-			t.Fatalf("upload request: %v", err)
-		}
-		defer response.Body.Close()
-		if response.StatusCode != http.StatusCreated {
-			body, _ := io.ReadAll(response.Body)
-			t.Fatalf("upload status = %d, body = %q", response.StatusCode, body)
-		}
+
 		var file map[string]any
-		if err := json.NewDecoder(response.Body).Decode(&file); err != nil {
-			t.Fatalf("decode upload response: %v", err)
+		if err := json.Unmarshal([]byte(body), &file); err != nil {
+			t.Fatalf("failed to parse JSON response: %v", err)
 		}
-		return file
-	}
 
-	first := upload("/api/u/name/report.txt", "first contents")
-	fileID, ok := first["ID"].(string)
-	if !ok || fileID == "" {
-		t.Fatalf("upload response did not contain an ID: %#v", first)
-	}
-	storageKey, ok := first["StorageKey"].(string)
-	if !ok || storageKey == "" {
-		t.Fatalf("upload response did not contain a storage key: %#v", first)
-	}
-	if _, err := os.Stat(filepath.Join(dataDir, "files", storageKey)); err != nil {
-		t.Fatalf("uploaded file was not stored in isolated data directory: %v", err)
-	}
+		fileID, ok := file["ID"].(string)
+		if !ok || fileID == "" {
+			t.Fatalf("response missing ID field: %s", body)
+		}
 
-	response, err := client.Get(server.URL + "/api/s/name/report.txt?exact=true")
-	if err != nil {
-		t.Fatalf("search request: %v", err)
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("search status = %d", response.StatusCode)
-	}
-	var searchResults []map[string]any
-	if err := json.NewDecoder(response.Body).Decode(&searchResults); err != nil {
-		t.Fatalf("decode search response: %v", err)
-	}
-	if len(searchResults) != 1 || searchResults[0]["ID"] != fileID {
-		t.Fatalf("unexpected search results: %#v", searchResults)
-	}
-	response.Body.Close()
+		storageKey, ok := file["StorageKey"].(string)
+		if !ok || storageKey == "" {
+			t.Fatalf("response missing StorageKey field: %s", body)
+		}
 
-	response, err = client.Get(server.URL + "/api/d/id/" + fileID)
-	if err != nil {
-		t.Fatalf("download request: %v", err)
-	}
-	body, err := io.ReadAll(response.Body)
-	response.Body.Close()
-	if err != nil {
-		t.Fatalf("read download response: %v", err)
-	}
-	if response.StatusCode != http.StatusOK || string(body) != "first contents" {
-		t.Fatalf("download status/body = %d/%q", response.StatusCode, body)
-	}
+		// Verify file actually written to disk
+		if _, err := os.Stat(filepath.Join(ts.DataDir, "files", storageKey)); err != nil {
+			t.Fatalf("file not found on disk storage: %v", err)
+		}
+	})
 
-	request, err := http.NewRequest(http.MethodPut, server.URL+"/api/u/id/"+fileID+"?encrypted=password", bytes.NewBufferString("updated contents"))
-	if err != nil {
-		t.Fatalf("create overwrite request: %v", err)
-	}
-	response, err = client.Do(request)
-	if err != nil {
-		t.Fatalf("overwrite request: %v", err)
-	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusCreated {
-		t.Fatalf("overwrite status = %d", response.StatusCode)
-	}
+	t.Run("Allow Duplicate Upload With Overwrite Flag", func(t *testing.T) {
+		ts.doRequest(t, http.MethodPut, "/api/u/name/overwrite.txt", "Initial Content", "", "")
 
-	request, err = http.NewRequest(http.MethodHead, server.URL+"/api/d/id/"+fileID, nil)
-	if err != nil {
-		t.Fatalf("create HEAD request: %v", err)
-	}
-	response, err = client.Do(request)
-	if err != nil {
-		t.Fatalf("HEAD request: %v", err)
-	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusOK || response.Header.Get("Content-Disposition") == "" {
-		t.Fatalf("HEAD status/headers = %d/%q", response.StatusCode, response.Header.Get("Content-Disposition"))
-	}
+		resp, body := ts.doRequest(t, http.MethodPut, "/api/u/name/overwrite.txt?overwrite=true", "New Content", "", "")
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200/201 on overwrite, got %d. Body: %s", resp.StatusCode, body)
+		}
+	})
 
-	response, err = client.Get(server.URL + "/")
-	if err != nil {
-		t.Fatalf("web index request: %v", err)
-	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("web index status = %d", response.StatusCode)
-	}
+	t.Run("Upload With Encryption Metadata Query Param", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodPut, "/api/u/name/secret.enc?encrypted=password", "Encrypted Data", "", "")
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
+		}
 
-	request, err = http.NewRequest(http.MethodDelete, server.URL+"/api/delete/id/"+fileID, nil)
-	if err != nil {
-		t.Fatalf("create delete request: %v", err)
-	}
-	response, err = client.Do(request)
-	if err != nil {
-		t.Fatalf("delete request: %v", err)
-	}
-	response.Body.Close()
-	if response.StatusCode != http.StatusNoContent {
-		t.Fatalf("delete status = %d", response.StatusCode)
-	}
+		var file map[string]any
+		_ = json.Unmarshal([]byte(body), &file)
+		if file["Encrypted"] != "password" {
+			t.Errorf("expected encryption param metadata to be saved/returned, got: %v", body)
+		}
+	})
+}
+
+func TestDownloadAndAuthAPI(t *testing.T) {
+	ts := newIntegrationServer(t)
+
+	// Seed unauthenticated file
+	ts.doRequest(t, http.MethodPut, "/api/u/name/public.txt", "Public Info", "", "")
+
+	// Seed password-protected file via HTTP Basic Auth as described in README
+	_, uploadBody := ts.doRequest(t, http.MethodPut, "/api/u/name/protected.txt", "Confidential Data", "", "secretpass")
+	var protectedFile map[string]any
+	_ = json.Unmarshal([]byte(uploadBody), &protectedFile)
+	protectedID := protectedFile["ID"].(string)
+
+	t.Run("Download Public File By Name", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodGet, "/api/d/name/public.txt", "", "", "")
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+		}
+		if body != "Public Info" {
+			t.Errorf("expected body 'Public Info', got %q", body)
+		}
+	})
+
+	t.Run("Download Protected File Without Auth Fails", func(t *testing.T) {
+		resp, _ := ts.doRequest(t, http.MethodGet, "/api/d/id/"+protectedID, "", "", "")
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 Unauthorized, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("Download Protected File With Wrong Password Fails", func(t *testing.T) {
+		resp, _ := ts.doRequest(t, http.MethodGet, "/api/d/id/"+protectedID, "", "", "wrongpass")
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 Unauthorized, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("Download Protected File With Correct Password Succeeds", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodGet, "/api/d/id/"+protectedID, "", "", "secretpass")
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+		}
+		if body != "Confidential Data" {
+			t.Errorf("expected body 'Confidential Data', got %q", body)
+		}
+	})
+
+	t.Run("Download Nonexistent File Returns 404", func(t *testing.T) {
+		resp, _ := ts.doRequest(t, http.MethodGet, "/api/d/name/doesnotexist.txt", "", "", "")
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected 404 Not Found, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestSearchAPI(t *testing.T) {
+	ts := newIntegrationServer(t)
+
+	ts.doRequest(t, http.MethodPut, "/api/u/name/alpha_report.txt", "data 1", "", "")
+	ts.doRequest(t, http.MethodPut, "/api/u/name/beta_report.txt", "data 2", "", "")
+	ts.doRequest(t, http.MethodPut, "/api/u/name/gamma_notes.txt", "data 3", "", "")
+
+	t.Run("Substring Search", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodGet, "/api/s/name/report", "", "", "")
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+		}
+
+		var results []map[string]any
+		if err := json.Unmarshal([]byte(body), &results); err != nil {
+			t.Fatalf("failed to parse search response: %v", err)
+		}
+		if len(results) != 2 {
+			t.Errorf("expected 2 search results for 'report', got %d", len(results))
+		}
+	})
+
+	t.Run("Exact Match Search - Positive", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodGet, "/api/s/name/gamma_notes.txt?exact=true", "", "", "")
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+		}
+
+		var results []map[string]any
+		_ = json.Unmarshal([]byte(body), &results)
+		if len(results) != 1 {
+			t.Errorf("expected 1 exact match, got %d", len(results))
+		}
+	})
+
+	t.Run("Exact Match Search - Negative", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodGet, "/api/s/name/gamma_notes?exact=true", "", "", "")
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("expected 404 Not Found, got %d", resp.StatusCode)
+		}
+
+		var results []map[string]any
+		_ = json.Unmarshal([]byte(body), &results)
+		if len(results) != 0 {
+			t.Errorf("expected 0 exact matches for partial string, got %d", len(results))
+		}
+	})
+
+	t.Run("Get All Metadata", func(t *testing.T) {
+		resp, body := ts.doRequest(t, http.MethodGet, "/api/s/getall", "", "", "")
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+		}
+
+		var results []map[string]any
+		_ = json.Unmarshal([]byte(body), &results)
+		if len(results) < 3 {
+			t.Errorf("expected at least 3 files in getall, got %d", len(results))
+		}
+	})
+}
+
+func TestWebUI(t *testing.T) {
+	ts := newIntegrationServer(t)
+
+	t.Run("Serve Home Page", func(t *testing.T) {
+		resp, _ := ts.doRequest(t, http.MethodGet, "/", "", "", "")
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200 OK for Web UI, got %d", resp.StatusCode)
+		}
+	})
 }

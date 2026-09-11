@@ -95,7 +95,7 @@ curl -T example.txt -u :{password} "https://server/api/u/id/{FileID}"
 
 | Parameter    | Values                    | Default | Description                                                  |
 | ------------ | ------------------------- | ------- | ------------------------------------------------------------ |
-| `encryption` | `key`, `password`, `none` | `none`  | Indicates the file's encryption method (informational only). |
+| `encrypted` | `key`, `password`, `none` | `none`  | Indicates the file's encryption method (informational only). |
 | `overwrite`  | `true`, `false`           | `false` | Overwrite an existing file with the same name for `/api/u/name/{filename}`. |
 
 ---
