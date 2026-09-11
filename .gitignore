@@ -5,3 +5,5 @@
 lanfile
 
 **/node_modules
+# No real secrets here, just for fun, if the user wants to decrypt it with the 'provided' password.txt file
+media/secrets.txt

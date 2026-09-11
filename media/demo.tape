@@ -12,14 +12,14 @@ Enter
 
 Sleep 5s
 
-Type "gpg --encrypt --recipient edward important_document.pdf"
+Type "wget lanfile.example/api/d/name/encrypted_file.txt.gpg"
+
+
+Sleep 500ms
 Enter
-
 Sleep 500ms
 
-Type "curl -T important_document.pdf.gpg lanfile.example/api/u/name/encrypted_document.pdf.gpg?encrypted=key""
-
-Sleep 500ms
+Type "gpg --batch --passphrase-file password.txt -o secrets.txt -d encrypted_file.txt.gpg"
 
 Enter
 
