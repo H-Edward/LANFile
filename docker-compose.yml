@@ -1,6 +1,6 @@
 services:
   lanfile:
-    image: ghcr.io/H-Edward/LANFile:latest
+    image: ghcr.io/h-edward/lanfile:latest
     ports:
       - "8080:8080"
     volumes:
