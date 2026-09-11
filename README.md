@@ -126,6 +126,9 @@ curl "server/api/s/name/report?exact=true"
 
 ## Security
 
-LANFile is intended for **trusted local networks**. It is **not** designed as a public-facing file-sharing service. By default, anyone with access to the webserver can upload, overwrite, and download files without authentication.
+LANFile is intended for **trusted local networks**. It is **not** designed as a public-facing file-sharing service. By default, anyone with access to the webserver can upload, overwrite, and download files without authentication, which allows for an attacker to supply-chain attack potentialy malicious files to your network or read sensitive data.
 
-Planned security improvements include authenticated file overwrites using passwords or cryptographic keys.
+To better secure your files and yourself, you can use the following methods:
+
+* **Password protection**: Use HTTP Basic Auth to set a password for files. This prevents unauthorized access to overwrite or download files. See the [Upload](#upload) section for more details.
+* **Encryption**: Encrypt files before uploading them. LANFile allows encryption via key-based or password-based encryption, which can be done using GPG on the CLI or GPG through the web interface. 
