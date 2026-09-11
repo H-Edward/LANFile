@@ -82,6 +82,18 @@ func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Reque
 	if overwrite == "true" && len(matchingFiles) == 1 {
 		file := matchingFiles[0]
 		authHash = file.AuthorisationHash
+		// if the file is being updated to have auth, we need to generate a new auth hash
+		if authHash == "none" {
+			_, secret, ok := r.BasicAuth()
+			if ok && secret != "" {
+				authHash, err = files.GenerateHash(secret)
+				if err != nil {
+					_ = os.Remove(path)
+					http.Error(w, "Failed to generate authorization hash", http.StatusInternalServerError)
+					return
+				}
+			}
+		}
 	}
 	if overwrite == "false" {
 		_, secret, ok := r.BasicAuth()

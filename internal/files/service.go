@@ -39,6 +39,9 @@ func (s *Service) GetAll(ctx context.Context) ([]database.File, error) {
 func (s *Service) GetByID(ctx context.Context, id string) (*database.File, error) {
 	var file database.File
 	if err := s.db.WithContext(ctx).First(&file, "id = ?", id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("file not found")
+		}
 		return nil, err
 	}
 	return &file, nil

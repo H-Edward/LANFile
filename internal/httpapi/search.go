@@ -45,7 +45,7 @@ func (h *SearchHandler) SearchByName(w http.ResponseWriter, r *http.Request) {
 	if exact == "true" {
 		files, err = h.fileService.GetByName(r.Context(), name)
 		if err != nil {
-			http.Error(w, "Error searching for files", http.StatusInternalServerError)
+			http.Error(w, "Error searching for files", http.StatusNotFound)
 			return
 		}
 		if len(files) == 0 {
@@ -59,7 +59,7 @@ func (h *SearchHandler) SearchByName(w http.ResponseWriter, r *http.Request) {
 	} else {
 		files, err = h.fileService.SearchByName(r.Context(), name)
 		if err != nil {
-			http.Error(w, "Error searching for files", http.StatusInternalServerError)
+			http.Error(w, "Error searching for files", http.StatusNotFound)
 			return
 		}
 		if len(files) == 0 {
@@ -78,7 +78,7 @@ func (h *SearchHandler) SearchByID(w http.ResponseWriter, r *http.Request) {
 
 	file, err := h.fileService.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Error searching for files", http.StatusInternalServerError)
+		http.Error(w, "Error searching for files", http.StatusNotFound)
 		return
 	}
 	if file == nil {
@@ -94,7 +94,7 @@ func (h *SearchHandler) SearchByID(w http.ResponseWriter, r *http.Request) {
 func (h *SearchHandler) GetAllFiles(w http.ResponseWriter, r *http.Request) {
 	files, err := h.fileService.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, "Error retrieving files", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving files", http.StatusNotFound)
 		return
 	}
 	// Return the list of files as JSON

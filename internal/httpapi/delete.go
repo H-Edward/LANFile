@@ -44,6 +44,18 @@ func (h *DeleteHandler) DeleteByID(w http.ResponseWriter, r *http.Request) {
 
 	storage_key := file.StorageKey
 
+	if file.NeedsAuth {
+		hasAuth, err := ReturnRequestHasAuth(r, *file)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+		if !hasAuth {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	err = h.fileService.DeleteByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "File not found", http.StatusNotFound)
@@ -57,5 +69,5 @@ func (h *DeleteHandler) DeleteByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }

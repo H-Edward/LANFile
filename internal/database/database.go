@@ -2,13 +2,25 @@ package database
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"time"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func Open(path string) (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+		Logger: logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			logger.Config{
+				SlowThreshold:             time.Second,
+				LogLevel:                  logger.Warn,
+				IgnoreRecordNotFoundError: true,
+			},
+		)})
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}

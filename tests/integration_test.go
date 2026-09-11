@@ -150,6 +150,48 @@ func TestUploadAPI(t *testing.T) {
 			t.Errorf("expected encryption param metadata to be saved/returned, got: %v", body)
 		}
 	})
+
+	t.Run("Upload With Authorization Hash and Overwrite", func(t *testing.T) {
+		// First upload with auth
+		resp1, body1 := ts.doRequest(t, http.MethodPut, "/api/u/name/overwrite_auth.txt", "Initial Auth Data", "", "initialpass")
+		if resp1.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201 Created for initial upload, got %d", resp1.StatusCode)
+		}
+
+		var file1 map[string]any
+		_ = json.Unmarshal([]byte(body1), &file1)
+		if file1["NeedsAuth"] != true {
+			t.Errorf("expected NeedsAuth to be true for initial password-protected upload, got: %v", body1)
+		}
+
+		// Attempt to otherwrite with a different password, should fail
+		resp2, body2 := ts.doRequest(t, http.MethodPut, "/api/u/name/overwrite_auth.txt?overwrite=true", "New Auth Data", "", "newpass")
+		if resp2.StatusCode != http.StatusUnauthorized { // Unauthed because the password doesn't match
+			t.Errorf("expected 401 Unauthorized on overwrite, got %d. Body: %s", resp2.StatusCode, body2)
+		}
+		// Attempt to overwrite with the correct password, should succeed
+		resp3, body3 := ts.doRequest(t, http.MethodPut, "/api/u/name/overwrite_auth.txt?overwrite=true", "New Auth Data", "", "initialpass")
+		if resp3.StatusCode != http.StatusOK && resp3.StatusCode != http.StatusCreated {
+			t.Errorf("expected 200 OK or 201 Created on overwrite with correct password, got %d. Body: %s", resp3.StatusCode, body3)
+		}
+
+		// Get the file, and check the data is updated and the password is still required
+		resp4, body4 := ts.doRequest(t, http.MethodGet, "/api/d/name/overwrite_auth.txt", "", "", "")
+		if resp4.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 Unauthorized when accessing password-protected file without auth, got %d. Body: %s", resp4.StatusCode, body4)
+		}
+
+		resp5, body5 := ts.doRequest(t, http.MethodGet, "/api/d/name/overwrite_auth.txt", "", "", "initialpass")
+		if resp5.StatusCode != http.StatusOK {
+			t.Errorf("expected 200 OK when accessing password-protected file with correct auth, got %d. Body: %s", resp5.StatusCode, body5)
+
+		}
+		// Verify the content is updated
+		if body5 != "New Auth Data" {
+			t.Errorf("expected updated content 'New Auth Data', got %q", body5)
+		}
+	})
+
 }
 
 func TestDownloadAndAuthAPI(t *testing.T) {
@@ -202,6 +244,99 @@ func TestDownloadAndAuthAPI(t *testing.T) {
 		resp, _ := ts.doRequest(t, http.MethodGet, "/api/d/name/doesnotexist.txt", "", "", "")
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("expected 404 Not Found, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("Add authorisation to existing file and verify access", func(t *testing.T) {
+		// Add authorization to the public file
+		resp, _ := ts.doRequest(t, http.MethodPut, "/api/u/name/public.txt?overwrite=true", "Public Info", "", "newpass")
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 200 OK or 201 Created on adding auth, got %d", resp.StatusCode)
+		}
+
+		// Attempt to access without auth should fail
+		resp2, _ := ts.doRequest(t, http.MethodGet, "/api/d/name/public.txt", "", "", "")
+		if resp2.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 Unauthorized after adding auth, got %d", resp2.StatusCode)
+		}
+		// Access with incorrect auth should fail
+		resp3, _ := ts.doRequest(t, http.MethodGet, "/api/d/name/public.txt", "", "", "wrongpass")
+		if resp3.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 Unauthorized with wrong auth, got %d", resp3.StatusCode)
+		}
+
+		resp4, _ := ts.doRequest(t, http.MethodGet, "/api/d/name/public.txt", "", "", "newpass")
+		if resp4.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK with correct auth, got %d", resp4.StatusCode)
+		}
+	})
+}
+
+func TestDeleteAPI(t *testing.T) {
+	ts := newIntegrationServer(t)
+
+	// Seed a file to delete
+	resp, body := ts.doRequest(t, http.MethodPut, "/api/u/name/todelete.txt", "Delete Me", "", "")
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
+	}
+
+	var file map[string]any
+	_ = json.Unmarshal([]byte(body), &file)
+	fileID := file["ID"].(string)
+	storageKey := file["StorageKey"].(string)
+
+	t.Run("Delete File By ID", func(t *testing.T) {
+		resp, _ := ts.doRequest(t, http.MethodDelete, "/api/delete/id/"+fileID, "", "", "")
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK on delete, got %d", resp.StatusCode)
+		}
+
+		// Verify file is deleted from disk
+		if _, err := os.Stat(filepath.Join(ts.DataDir, "files", storageKey)); !os.IsNotExist(err) {
+			t.Fatalf("expected file to be deleted from disk, but it still exists")
+		}
+
+		// Verify file is deleted from database
+		resp2, _ := ts.doRequest(t, http.MethodGet, "/api/s/id/"+fileID, "", "", "")
+		if resp2.StatusCode != http.StatusNotFound {
+			t.Fatalf("expected 404 Not Found when searching for deleted file, got %d", resp2.StatusCode)
+		}
+	})
+
+	t.Run("Delete Nonexistent File Returns 404", func(t *testing.T) {
+		resp, _ := ts.doRequest(t, http.MethodDelete, "/api/delete/id/nonexistentid", "", "", "")
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("expected 404 Not Found when deleting nonexistent file, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("Delete File With Authorization", func(t *testing.T) {
+		// Seed a password-protected file
+		resp, body := ts.doRequest(t, http.MethodPut, "/api/u/name/protected_delete.txt", "Protected Delete", "", "deletepass")
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected 201 Created for protected file, got %d", resp.StatusCode)
+		}
+		var protectedFile map[string]any
+		_ = json.Unmarshal([]byte(body), &protectedFile)
+		protectedID := protectedFile["ID"].(string)
+
+		// Attempt to delete without auth should fail
+		resp2, _ := ts.doRequest(t, http.MethodDelete, "/api/delete/id/"+protectedID, "", "", "")
+		if resp2.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 Unauthorized when deleting protected file without auth, got %d", resp2.StatusCode)
+		}
+
+		// Attempt to delete with wrong auth should fail
+		resp3, _ := ts.doRequest(t, http.MethodDelete, "/api/delete/id/"+protectedID, "", "", "wrongpass")
+		if resp3.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected 401 Unauthorized when deleting protected file with wrong auth, got %d", resp3.StatusCode)
+		}
+
+		// Delete with correct auth should succeed
+		resp4, _ := ts.doRequest(t, http.MethodDelete, "/api/delete/id/"+protectedID, "", "", "deletepass")
+		if resp4.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK when deleting protected file with correct auth, got %d", resp4.StatusCode)
 		}
 	})
 }
