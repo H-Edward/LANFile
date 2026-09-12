@@ -28,15 +28,11 @@ func NewUploadHandler(fileService *files.Service, dataDir string) *UploadHandler
 // createNewFileRecord handles the creation of a new file record in the database and saves the uploaded file to disk. It also handles overwriting existing files if specified.
 func (h *UploadHandler) createNewFileRecord(w http.ResponseWriter, r *http.Request, overwrite string, name string, encrypted string, matchingFiles []database.File) {
 
-	// Auth
+	// Auth, only needed for replace/overwriting
 	if overwrite == "true" && len(matchingFiles) == 1 {
 		file := matchingFiles[0]
 		hasAuth, err := ReturnRequestHasAuth(r, file)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
-			return
-		}
-		if !hasAuth {
+		if !hasAuth || err != nil{
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}

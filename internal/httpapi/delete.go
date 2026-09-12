@@ -48,11 +48,7 @@ func (h *DeleteHandler) DeleteByID(w http.ResponseWriter, r *http.Request) {
 
 	if file.NeedsAuth {
 		hasAuth, err := ReturnRequestHasAuth(r, *file)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
-			return
-		}
-		if !hasAuth {
+		if !hasAuth || err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}

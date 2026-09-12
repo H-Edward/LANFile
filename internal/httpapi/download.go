@@ -57,11 +57,7 @@ func (h *DownloadHandler) GetByName(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(h.dataDir, "files", file.StorageKey)
 
 	hasAuth, err := ReturnRequestHasAuth(r, file)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
-	}
-	if !hasAuth {
+	if !hasAuth  || err != nil{
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -82,11 +78,8 @@ func (h *DownloadHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	path := filepath.Join(h.dataDir, "files", file.StorageKey)
 
 	hasAuth, err := ReturnRequestHasAuth(r, *file)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
-	}
-	if !hasAuth {
+	
+	if !hasAuth || err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
