@@ -23,9 +23,9 @@ func getenv(key, fallback string) string {
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Error loading .env file: %v", err)
-		
+
 	}
-	
+
 	dataDir := getenv("LANFILE_DATA", "./data")
 	addr := getenv("LANFILE_PORT", "8022")
 
@@ -37,7 +37,7 @@ func main() {
 		log.Fatalf("failed to create files directory: %v", err)
 	}
 
-	db, err := database.Open(getenv("LANFILE_DB", "./data.db"))
+	db, err := database.Open(getenv("LANFILE_DB", "./data/data.db"))
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
 	}
