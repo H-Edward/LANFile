@@ -1,4 +1,4 @@
-
+.PHONY: all run test
 all: run
 
 run:
