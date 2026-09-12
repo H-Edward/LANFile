@@ -28,6 +28,7 @@ type CreateFileInput struct {
 	AuthorisationHash string
 }
 
+// GetAll retrieves a list of all files from the database.
 func (s *Service) GetAll(ctx context.Context) ([]database.File, error) {
 	var files []database.File
 	if err := s.db.WithContext(ctx).Find(&files).Error; err != nil {
@@ -36,6 +37,7 @@ func (s *Service) GetAll(ctx context.Context) ([]database.File, error) {
 	return files, nil
 }
 
+// GetByID retrieves a file by its ID. Returns an error if the file is not found.
 func (s *Service) GetByID(ctx context.Context, id string) (*database.File, error) {
 	var file database.File
 	if err := s.db.WithContext(ctx).First(&file, "id = ?", id).Error; err != nil {
@@ -47,6 +49,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*database.File, error
 	return &file, nil
 }
 
+// GetByName retrieves a list of files by their exact original name. Returns an error if no files are found.
 func (s *Service) GetByName(ctx context.Context, originalName string) ([]database.File, error) {
 	var files []database.File
 	if err := s.db.WithContext(ctx).Where("original_name = ?", originalName).Find(&files).Error; err != nil {
@@ -55,7 +58,7 @@ func (s *Service) GetByName(ctx context.Context, originalName string) ([]databas
 	return files, nil
 }
 
-// Search in-line for files with names that contain the search term i.e "test" would return "test.txt", "my_test_file.pdf", etc.
+// SearchByName retrieves a list of files whose original name contains the specified substring. Returns an error if no files are found.
 func (s *Service) SearchByName(ctx context.Context, originalName string) ([]database.File, error) {
 	var files []database.File
 	if err := s.db.WithContext(ctx).Where("original_name LIKE ?", "%"+originalName+"%").Find(&files).Error; err != nil {
@@ -64,6 +67,7 @@ func (s *Service) SearchByName(ctx context.Context, originalName string) ([]data
 	return files, nil
 }
 
+// Create creates a new file record in the database with the provided input data.
 func (s *Service) Create(ctx context.Context, input CreateFileInput) (*database.File, error) {
 	file := &database.File{
 		ID:                uuid.New().String(),
@@ -83,6 +87,7 @@ func (s *Service) Create(ctx context.Context, input CreateFileInput) (*database.
 	return file, nil
 }
 
+// OverwriteByID updates an existing file record in the database with the provided input data. Returns an error if the file is not found.
 func (s *Service) OverwriteByID(ctx context.Context, id string, input CreateFileInput) (*database.File, error) {
 	file, err := s.GetByID(ctx, id)
 	if err != nil {
@@ -102,6 +107,7 @@ func (s *Service) OverwriteByID(ctx context.Context, id string, input CreateFile
 	return file, nil
 }
 
+// DeleteByID deletes a file record from the database by its ID. Returns an error if the file is not found.
 func (s *Service) DeleteByID(ctx context.Context, id string) error {
 	result := s.db.WithContext(ctx).Delete(&database.File{}, "id = ?", id)
 	if result.Error != nil {
